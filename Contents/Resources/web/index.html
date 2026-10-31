@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playlist Downloader</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬇</text></svg>">
+</head>
+<body>
+
+<!-- Shown by auth.js when this build requires an account and nobody is
+     signed in. It sits above everything, so the app underneath can finish
+     initialising without flashing its contents first. -->
+<div id="auth-gate" class="auth-gate" hidden>
+  <div class="auth-card">
+    <div class="auth-brand"><span class="logo">⬇</span> Playlist Downloader</div>
+
+    <h2 id="auth-title">Sign in to continue</h2>
+    <p class="auth-sub" id="auth-sub">Your account ties your downloads to you, so problems can
+      be fixed and you can be told when something fails.</p>
+
+    <button class="auth-google" id="btn-google" hidden>
+      <svg viewBox="0 0 48 48" width="17" height="17" aria-hidden="true">
+        <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-2.8-.4-4H24v7.6h12.1c-.2 2-1.6 5-4.5 7l-.1.3 6.6 5.1.5.1c4.2-3.9 6.5-9.6 6.5-16.1"/>
+        <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.6-5.4l-7-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-.3.1-6.9 5.3-.1.3C8 42.6 15.4 46 24 46"/>
+        <path fill="#FBBC05" d="M11.5 28.3c-.5-1.4-.8-2.9-.8-4.4s.3-3 .7-4.4v-.3L4.4 13.8l-.2.1A22 22 0 0 0 2 23.9c0 3.6.9 7 2.2 10l7.3-5.6"/>
+        <path fill="#EA4335" d="M24 9.6c4.1 0 6.9 1.8 8.5 3.3l6.2-6C34.9 3.2 29.9 1 24 1 15.4 1 8 6.4 4.4 13.8l7.2 5.6C13.3 14 18.2 9.6 24 9.6"/>
+      </svg>
+      <span>Continue with Google</span>
+    </button>
+
+    <div class="auth-or" id="auth-or" hidden><span>or use your email</span></div>
+
+    <form id="auth-form" autocomplete="on">
+      <label class="auth-field" id="auth-name-wrap" hidden>
+        <span>Name <em>(optional)</em></span>
+        <input id="auth-name" type="text" autocomplete="name" placeholder="Alex">
+      </label>
+      <label class="auth-field">
+        <span>Email</span>
+        <input id="auth-email" type="email" autocomplete="email" required
+               placeholder="you@example.com" spellcheck="false">
+      </label>
+      <label class="auth-field">
+        <span>Password</span>
+        <input id="auth-password" type="password" autocomplete="current-password"
+               required placeholder="••••••••" minlength="6">
+      </label>
+      <p class="auth-error" id="auth-error" hidden></p>
+      <button class="primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+    </form>
+
+    <div class="auth-links">
+      <button class="linklike" id="auth-toggle" type="button">Create an account</button>
+      <button class="linklike" id="auth-forgot" type="button">Forgot password?</button>
+    </div>
+
+    <p class="auth-note" id="auth-note">
+      While you are signed in, this app records your email, the playlist links
+      you download and any errors, so the developer can help when something
+      breaks. Nothing else is collected.
+    </p>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">⬇</span>
+    <div>
+      <h1>Playlist Downloader</h1>
+      <span class="muted" id="version">—</span>
+    </div>
+  </div>
+
+  <div class="stats" id="stats">
+    <div class="stat"><b id="stat-total">0</b><span>total</span></div>
+    <div class="stat ok"><b id="stat-done">0</b><span>done</span></div>
+    <div class="stat"><b id="stat-skipped">0</b><span>skipped</span></div>
+    <div class="stat run"><b id="stat-active">0</b><span>downloading</span></div>
+    <div class="stat warn"><b id="stat-pending">0</b><span>pending</span></div>
+    <div class="stat bad"><b id="stat-failed">0</b><span>failed</span></div>
+  </div>
+
+  <div class="controls">
+    <button id="btn-start" class="primary">▶ Start</button>
+    <button id="btn-pause" hidden>⏸ Pause</button>
+    <button id="btn-resume" hidden>▶ Resume</button>
+    <button id="btn-stop" class="danger" hidden>⏹ Stop</button>
+    <button id="btn-retry" class="ghost">↻ Retry failed</button>
+    <button id="btn-help" class="ghost" title="Show the step-by-step guided tour">❓ How to use</button>
+    <span class="account" id="account" hidden>
+      <button class="ghost account-btn" id="btn-account" title="Signed in">
+        <span class="account-dot"></span><span id="account-email">—</span>
+      </button>
+      <button class="ghost" id="btn-signout" title="Sign out of this app">Sign out</button>
+    </span>
+    <button id="btn-quit" class="ghost" title="Stop the background service">⏻ Quit</button>
+  </div>
+
+  <div id="update-banner" class="update-banner" hidden>
+    <span id="update-banner-text">A new version is available.</span>
+    <span class="row" style="gap:8px">
+      <button class="ghost" id="btn-update-preview">🔍 Preview</button>
+      <button class="update-btn-animated" id="btn-update-install" style="position:relative;overflow:hidden;padding:8px 16px;border-radius:8px;cursor:pointer">⚡ Update &amp; restart</button>
+      <button class="ghost" id="btn-update-dismiss" title="Later">✕</button>
+    </span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="download">Download</button>
+  <button class="tab" data-tab="compare">Compare folder</button>
+  <button class="tab" data-tab="settings">Settings</button>
+  <button class="tab" data-tab="log">Activity</button>
+  <span class="conn" id="conn">connecting…</span>
+</nav>
+
+<main>
+
+  <!-- ============================ DOWNLOAD ============================ -->
+  <section class="panel active" id="tab-download">
+    <div class="card" id="card-quick">
+      <h2>Download something</h2>
+      <div class="row">
+        <input id="quick-input" type="text" spellcheck="false"
+               placeholder="Paste a YouTube / YouTube Music / Spotify link, or a .txt / folder path">
+        <button class="primary" id="btn-quick">⬇ Download</button>
+      </div>
+      <p class="hint" id="quick-hint">Paste a link and press <b>Download</b> — it imports and starts right away, using the folder and format saved in Settings.</p>
+    </div>
+
+    <div class="card" id="card-tools" hidden>
+      <h2>One-time setup</h2>
+      <p class="hint" id="tools-hint">This computer needs two helper programs before audio can be extracted.</p>
+      <div class="row">
+        <button class="primary" id="btn-tools-install">Install required tools</button>
+        <span class="muted" id="tools-status"></span>
+      </div>
+      <div class="setup-progress" id="tools-progress" hidden>
+        <div class="setup-track"><i id="tools-progress-fill"></i></div>
+        <div class="setup-meta">
+          <span id="tools-progress-text">Connecting…</span>
+          <span id="tools-progress-pct">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="split">
+
+      <aside class="sidebar">
+        <div class="card" id="card-add">
+          <h2>Add a playlist</h2>
+          <label class="field">
+            <span>Source</span>
+            <select id="import-source">
+              <option value="auto">Auto-detect</option>
+              <option value="youtube">YouTube / YouTube Music</option>
+              <option value="spotify">Spotify playlist</option>
+              <option value="file">Text or CSV file</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Link or file path</span>
+            <textarea id="import-input" rows="3"
+              placeholder="https://music.youtube.com/playlist?list=…&#10;https://open.spotify.com/playlist/…&#10;/Users/you/Desktop/songs.txt"></textarea>
+          </label>
+          <label class="field">
+            <span>Download as</span>
+            <select id="import-mode">
+              <option value="audio">Music (audio)</option>
+              <option value="video">Video</option>
+            </select>
+          </label>
+          <button id="btn-import" class="primary wide">＋ Import playlist</button>
+          <p class="hint" id="import-hint"></p>
+        </div>
+
+        <div class="card grow">
+          <h2>Your playlists</h2>
+          <div id="playlist-list" class="playlist-list">
+            <p class="empty">No playlists yet.</p>
+          </div>
+        </div>
+      </aside>
+
+      <div class="content">
+        <div class="card" id="card-queue">
+          <div class="card-head">
+            <h2 id="queue-title">Queue</h2>
+            <div class="row">
+              <input id="queue-filter" class="search" type="search" placeholder="Filter by title or artist…">
+              <select id="queue-status-filter">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="downloading">Downloading</option>
+                <option value="done">Done</option>
+                <option value="failed">Failed</option>
+                <option value="skipped">Skipped</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="queue-table">
+              <thead>
+                <tr>
+                  <th class="col-num">#</th>
+                  <th>Title</th>
+                  <th class="col-artist">Artist</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-progress">Progress</th>
+                  <th class="col-actions"></th>
+                </tr>
+              </thead>
+              <tbody id="queue-body">
+                <tr><td colspan="6" class="empty">Import a playlist to get started.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ COMPARE ============================ -->
+  <section class="panel" id="tab-compare">
+    <div class="card" id="card-compare">
+      <h2>Compare a folder against a playlist</h2>
+      <p class="hint">
+        Finds which tracks from a playlist are <b>missing</b> from a folder, and which
+        files exist that are not in the playlist. Matching is fuzzy, so
+        <code>Artist - Title</code>, tags, and noisy YouTube titles all line up.
+      </p>
+
+      <div class="grid-3">
+        <label class="field">
+          <span>Playlist</span>
+          <select id="compare-playlist"><option value="">— choose —</option></select>
+        </label>
+        <label class="field">
+          <span>Folder to scan</span>
+          <div class="row">
+            <input id="compare-folder" type="text" placeholder="/Users/you/Music">
+            <button id="btn-browse" class="ghost">Browse…</button>
+          </div>
+        </label>
+        <label class="field">
+          <span>Match strictness <em id="threshold-label">balanced</em></span>
+          <input id="compare-threshold" type="range" min="0.5" max="0.95" step="0.01" value="0.72">
+        </label>
+      </div>
+
+      <div class="row wrap gap">
+        <label class="check"><input type="checkbox" id="compare-recursive" checked> Include sub-folders</label>
+        <label class="check"><input type="checkbox" id="compare-read-tags" checked> Read ID3 tags</label>
+        <label class="check"><input type="checkbox" id="compare-ignore-extra" checked> Ignore extra files</label>
+        <button id="btn-compare" class="primary">⇄ Compare</button>
+      </div>
+      <p class="hint" id="compare-status"></p>
+    </div>
+
+    <div class="card" id="compare-results" hidden>
+      <div class="card-head">
+        <h2>Results</h2>
+        <div class="row gap">
+          <button class="mini-tab active" data-cres="missing">Missing</button>
+          <button class="mini-tab" data-cres="matched">Matched</button>
+          <button class="mini-tab" data-cres="extra">Extra files</button>
+        </div>
+      </div>
+      <div class="compare-summary" id="compare-summary"></div>
+
+      <div id="cres-missing" class="cres active">
+        <div class="row gap wrap">
+          <button id="btn-import-missing" class="primary">⬇ Add missing tracks to queue</button>
+          <button id="btn-export-missing" class="ghost">⤓ Export list (.txt)</button>
+        </div>
+        <div class="table-wrap"><table id="missing-table">
+          <thead><tr><th class="col-num">#</th><th>Title</th><th>Artist</th><th>Closest match on disk</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <div id="cres-matched" class="cres">
+        <div class="table-wrap"><table id="matched-table">
+          <thead><tr><th class="col-num">#</th><th>Playlist track</th><th>Matched file</th><th class="col-score">Score</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <div id="cres-extra" class="cres">
+        <p class="hint">Files in the folder that did not match any playlist track.</p>
+        <div class="table-wrap"><table id="extra-table">
+          <thead><tr><th class="col-num">#</th><th>File</th><th>Artist</th><th>Album</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ SETTINGS ============================ -->
+  <section class="panel" id="tab-settings">
+    <div class="card" id="card-where">
+      <h2>Where files go</h2>
+      <div class="field-row">
+        <label class="field grow">
+          <span>Download folder</span>
+          <input type="text" id="set-download_dir">
+        </label>
+        <button class="ghost" id="btn-reveal">Open folder</button>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="set-make_playlist_subfolder"> Put a multi-track playlist in its own folder (named after the playlist)</label>
+    </div>
+
+    <div class="card" id="card-music">
+      <h2>Music</h2>
+      <div class="grid-3">
+        <label class="field"><span>Format</span>
+          <select id="set-audio_format">
+            <option value="mp3">MP3</option><option value="m4a">M4A / AAC</option>
+            <option value="opus">Opus</option><option value="flac">FLAC (lossless)</option>
+            <option value="wav">WAV</option><option value="original">Keep original</option>
+          </select></label>
+        <label class="field"><span>Quality</span>
+          <select id="set-audio_quality">
+            <option value="320">320 kbps (best)</option><option value="256">256 kbps</option>
+            <option value="192">192 kbps</option><option value="128">128 kbps</option>
+            <option value="best">Best available</option>
+          </select></label>
+        <label class="field"><span>Filename pattern</span>
+          <input type="text" id="set-audio_filename"></label>
+      </div>
+      <div class="row wrap gap">
+        <label class="check"><input type="checkbox" id="set-tag_metadata"> Write tags (artist, album, title)</label>
+        <label class="check"><input type="checkbox" id="set-embed_cover_art"> Embed cover art</label>
+        <label class="check"><input type="checkbox" id="set-write_cover_file"> Save cover.jpg beside tracks</label>
+        <label class="check"><input type="checkbox" id="set-rename_to_metadata"> Rename to “Artist - Title”</label>
+      </div>
+    </div>
+
+    <div class="card" id="card-video">
+      <h2>Video</h2>
+      <div class="grid-3">
+        <label class="field"><span>Container</span>
+          <select id="set-video_format">
+            <option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option>
+          </select></label>
+        <label class="field"><span>Max quality</span>
+          <select id="set-video_quality">
+            <option value="best">Best available</option><option value="2160">4K (2160p)</option>
+            <option value="1440">1440p</option><option value="1080">1080p</option>
+            <option value="720">720p</option><option value="480">480p</option>
+          </select></label>
+        <label class="field"><span>Filename pattern</span>
+          <input type="text" id="set-video_filename"></label>
+      </div>
+    </div>
+
+    <div class="card" id="card-speed">
+      <h2>Speed &amp; stability</h2>
+      <div class="grid-3">
+        <label class="field"><span>Parallel downloads <em id="lbl-workers"></em></span>
+          <input type="range" id="set-concurrent_downloads" min="1" max="10" step="1"></label>
+        <label class="field"><span>Parallel chunks per file <em id="lbl-frags"></em></span>
+          <input type="range" id="set-concurrent_fragments" min="1" max="8" step="1"></label>
+        <label class="field"><span>Speed limit (KB/s, 0 = off)</span>
+          <input type="number" id="set-rate_limit_kbps" min="0" step="50"></label>
+        <label class="field"><span>Network retries inside one attempt</span>
+          <input type="number" id="set-retries" min="0" step="1"></label>
+        <label class="field"><span>Attempts per track <em id="lbl-item-retries"></em></span>
+          <input type="range" id="set-item_retries" min="1" max="10" step="1"></label>
+        <label class="field"><span>Retry backoff (seconds)</span>
+          <input type="number" id="set-retry_delay_seconds" min="1" step="1"></label>
+        <label class="field"><span>Socket timeout (s)</span>
+          <input type="number" id="set-socket_timeout" min="5" step="5"></label>
+        <label class="field"><span>Delay between requests (s)</span>
+          <input type="number" id="set-sleep_between_requests" min="0" step="0.5"></label>
+      </div>
+      <div class="row wrap gap">
+        <label class="check"><input type="checkbox" id="set-use_archive"> Never re-download finished tracks</label>
+        <label class="check"><input type="checkbox" id="set-skip_existing_files"> Skip items whose file already exists</label>
+        <label class="check"><input type="checkbox" id="set-auto_retry_failed"> Auto-retry failures once after a run</label>
+        <label class="check"><input type="checkbox" id="set-dry_run"> Test mode — resolve tracks, download nothing</label>
+      </div>
+      <p class="hint">
+        3–4 parallel downloads is the sweet spot. YouTube throttles bursts, so the app
+        retries transient failures with backoff instead of giving up — that matters
+        when you queue a few thousand tracks. Use <b>Test mode</b> to check that a big
+        playlist resolves correctly before committing to the download.
+      </p>
+    </div>
+
+    <div class="card" id="card-access">
+      <h2>Access &amp; networking</h2>
+      <div class="grid-3">
+        <label class="field"><span>Cookies from browser (for private playlists)</span>
+          <select id="set-cookies_from_browser">
+            <option value="">None</option><option value="chrome">Chrome</option>
+            <option value="firefox">Firefox</option><option value="edge">Edge</option>
+            <option value="brave">Brave</option><option value="safari">Safari</option>
+          </select></label>
+        <label class="field"><span>Proxy (optional)</span>
+          <input type="text" id="set-proxy" placeholder="http://host:port"></label>
+        <label class="field"><span>ffmpeg path</span>
+          <input type="text" id="set-ffmpeg_path"></label>
+      </div>
+      <div class="grid-3">
+        <label class="field"><span>Spotify Client ID (optional)</span>
+          <input type="text" id="set-spotify_client_id" autocomplete="off"></label>
+        <label class="field"><span>Spotify Client Secret (optional)</span>
+          <input type="password" id="set-spotify_client_secret" autocomplete="off"></label>
+        <label class="field"><span>&nbsp;</span>
+          <label class="check"><input type="checkbox" id="set-resolve_missing_to_youtube"> Search YouTube for Spotify tracks</label></label>
+      </div>
+      <p class="hint">Optional, but recommended for long playlists. Spotify's public page only lists the <b>first 100 tracks</b> — add free credentials from developer.spotify.com to import a playlist of any length, with accurate album metadata.</p>
+    </div>
+
+    <div class="card" id="card-updates">
+      <h2>Updates</h2>
+      <div class="row space">
+        <div>
+          <div class="muted">This version: <b id="update-current">—</b></div>
+          <div class="muted" id="update-status">Not checked yet.</div>
+        </div>
+        <button class="ghost" id="btn-check-update">Check for updates</button>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="set-auto_check_updates"> Check for updates automatically when the app starts</label>
+    </div>
+
+    <div class="card">
+      <div class="row space">
+        <div class="tools" id="tool-status"></div>
+        <button id="btn-save" class="primary">Save settings</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== LOG ============================== -->
+  <section class="panel" id="tab-log">
+    <div class="card" id="card-log">
+      <div class="card-head">
+        <h2>Activity</h2>
+        <button class="ghost" id="btn-clear-log">Clear</button>
+      </div>
+      <div id="log-view" class="log-view"></div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toasts" class="toasts"></div>
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head"><h3>Choose a folder</h3><button class="ghost" id="modal-close">✕</button></div>
+    <div class="modal-path" id="modal-path"></div>
+    <div class="modal-list" id="modal-list"></div>
+    <div class="modal-foot">
+      <button class="ghost" id="modal-up">↑ Up</button>
+      <button class="primary" id="modal-pick">Choose this folder</button>
+    </div>
+  </div>
+</div>
+
+<div id="dest-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head"><h3>Where should these go?</h3><button class="ghost" id="dest-close">✕</button></div>
+    <div class="modal-body">
+      <label class="field">
+        <span>Save to folder</span>
+        <div class="row">
+          <input id="dest-path" type="text" spellcheck="false" placeholder="~/Downloads/Playlist Downloader">
+          <button class="ghost" id="dest-choose">Choose…</button>
+        </div>
+      </label>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="dest-subfolder"> Put a multi-track playlist in its own folder</label>
+      <p class="hint" id="dest-preview"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="ghost" id="dest-cancel">Cancel</button>
+      <button class="primary" id="dest-go">Start download</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="tour.js"></script>
+</body>
+</html>
