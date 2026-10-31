@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tank Battle Arena — Admin</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            background: #0d0d1a;
+            color: #eaeaea;
+            font-family: 'Orbitron', monospace;
+            font-size: 12px;
+            overflow: hidden;
+        }
+        /* ------ LOGIN SCREEN ------ */
+        #adminApp {
+            width: 100%; height: 100%;
+            display: flex; flex-direction: column;
+        }
+        #loginScreen {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100%; gap: 20px;
+        }
+        #loginScreen h1 { font-size: 28px; color: #e94560; letter-spacing: 4px; }
+        #loginScreen p { color: #666; font-size: 10px; letter-spacing: 2px; }
+        #loginScreen button {
+            padding: 12px 30px; border-radius: 8px;
+            border: 1px solid #555; background: rgba(52,152,219,0.2);
+            color: #f39c12; font-family: 'Orbitron', monospace;
+            font-size: 13px; cursor: pointer; transition: all 0.2s;
+        }
+        #loginScreen button:hover { background: rgba(52,152,219,0.4); border-color: #f39c12; }
+        #loginError { color: #e94560; font-size: 11px; min-height: 20px; }
+
+        /* ------ DASHBOARD ------ */
+        #dashboard { display: flex; flex-direction: column; height: 100%; }
+        #dashHeader {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 20px; background: rgba(0,0,0,0.4);
+            border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        #dashHeader h1 { font-size: 16px; color: #e94560; letter-spacing: 3px; }
+        #dashHeader span { color: #666; font-size: 9px; }
+        #dashHeader button {
+            padding: 6px 14px; border-radius: 4px; border: 1px solid #555;
+            background: transparent; color: #999; cursor: pointer;
+            font-family: 'Orbitron', monospace; font-size: 9px;
+        }
+        #dashHeader button:hover { color: #f39c12; border-color: #f39c12; }
+
+        /* ------ TABS ------ */
+        #dashTabs {
+            display: flex; gap: 0; background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid #222; flex-shrink: 0;
+        }
+        .dash-tab {
+            padding: 10px 18px; cursor: pointer; color: #666;
+            font-size: 10px; letter-spacing: 1px; transition: all 0.2s;
+            border-bottom: 2px solid transparent; user-select: none;
+        }
+        .dash-tab:hover { color: #aaa; }
+        .dash-tab.active { color: #f39c12; border-bottom-color: #f39c12; background: rgba(243,156,18,0.06); }
+
+        /* ------ CONTENT ------ */
+        #dashContent { flex: 1; overflow-y: auto; padding: 15px 20px; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ------ CARDS ------ */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; margin-bottom: 20px; }
+        .stat-card {
+            padding: 14px; border-radius: 8px; border: 1px solid #222;
+            background: rgba(0,0,0,0.3); text-align: center;
+        }
+        .stat-card .num { font-size: 28px; font-weight: 700; color: #f39c12; }
+        .stat-card .lbl { font-size: 8px; color: #888; letter-spacing: 2px; margin-top: 4px; }
+
+        /* ------ TABLE ------ */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+        .data-table th {
+            text-align: left; padding: 8px 6px; border-bottom: 1px solid #333;
+            color: #888; font-weight: 400; letter-spacing: 1px; font-size: 9px;
+        }
+        .data-table td { padding: 6px; border-bottom: 1px solid #1a1a1a; vertical-align: top; }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .data-table .key-cell { color: #666; font-size: 8px; max-width: 200px; word-break: break-all; }
+        .data-table .val-cell { color: #bdc3c7; font-size: 9px; max-width: 300px; word-break: break-all; white-space: pre-wrap; }
+        .data-table .id-cell { color: #e67e22; font-size: 8px; max-width: 220px; word-break: break-all; }
+
+        /* ------ INLINE EDIT ------ */
+        .editable { cursor: pointer; border-bottom: 1px dashed #444; transition: border-color 0.2s; }
+        .editable:hover { border-color: #f39c12; }
+        .edit-input {
+            background: rgba(0,0,0,0.6); border: 1px solid #f39c12; border-radius: 3px;
+            color: #eaeaea; font-family: 'Orbitron', monospace; font-size: 10px;
+            padding: 2px 4px; width: 100px;
+        }
+        .ctrl-input {
+            background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 3px;
+            color: #eaeaea; font-family: 'Orbitron', monospace; font-size: 10px;
+            padding: 2px 4px; width: 60px; text-align: center; transition: border-color 0.2s;
+        }
+        .ctrl-input:focus { border-color: #f39c12; outline: none; }
+
+        /* ------ BUTTONS ------ */
+        .btn-sm {
+            padding: 3px 8px; border-radius: 3px; border: 1px solid #444;
+            background: transparent; color: #999; cursor: pointer;
+            font-family: 'Orbitron', monospace; font-size: 8px; transition: all 0.2s;
+        }
+        .btn-sm:hover { border-color: #f39c12; color: #f39c12; }
+        .btn-sm.danger { border-color: #e94560; color: #e94560; }
+        .btn-sm.danger:hover { background: rgba(233,69,96,0.2); }
+        .btn-sm.success { border-color: #27ae60; color: #27ae60; }
+        .btn-sm.success:hover { background: rgba(39,174,96,0.2); }
+
+        /* ------ EXPANDABLE ------ */
+        .expand-toggle { cursor: pointer; color: #3498db; user-select: none; }
+        .expand-toggle:hover { color: #f39c12; }
+        .expand-content { display: none; padding: 8px 0 8px 16px; }
+        .expand-content.open { display: block; }
+
+        /* ------ SEARCH ------ */
+        .search-bar {
+            display: flex; gap: 8px; margin-bottom: 12px;
+        }
+        .search-bar input {
+            flex: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #444;
+            background: rgba(0,0,0,0.4); color: #eaeaea;
+            font-family: 'Orbitron', monospace; font-size: 10px; outline: none;
+        }
+        .search-bar input:focus { border-color: #f39c12; }
+
+        /* ------ TOAST ------ */
+        #toast {
+            position: fixed; bottom: 20px; right: 20px;
+            padding: 10px 16px; border-radius: 6px; background: rgba(39,174,96,0.9);
+            color: #fff; font-size: 10px; font-family: 'Orbitron', monospace;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
+        }
+        #toast.error { background: rgba(233,69,96,0.9); }
+        #toast.show { opacity: 1; }
+
+        /* ------ LOADING ------ */
+        .loading { color: #555; text-align: center; padding: 20px; font-size: 10px; }
+
+        /* ------ STATUS DOT ------ */
+        .dot-online { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #27ae60; margin-right: 4px; }
+        .dot-offline { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #555; margin-right: 4px; }
+
+        /* ------ MODAL ------ */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            display: none; align-items: center; justify-content: center; z-index: 100;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: #1a1a2e; border: 1px solid #333; border-radius: 10px;
+            padding: 20px; min-width: 340px; max-width: 90vw; max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-box h2 { font-size: 14px; color: #f39c12; margin-bottom: 12px; letter-spacing: 2px; }
+        .modal-box .field { margin-bottom: 10px; }
+        .modal-box .field label { display: block; color: #888; font-size: 8px; letter-spacing: 1px; margin-bottom: 3px; }
+        .modal-box .field input, .modal-box .field textarea {
+            width: 100%; padding: 6px 8px; border-radius: 4px; border: 1px solid #444;
+            background: rgba(0,0,0,0.4); color: #eaeaea; font-family: 'Orbitron', monospace; font-size: 10px; outline: none;
+        }
+        .modal-box .field input:focus, .modal-box .field textarea:focus { border-color: #f39c12; }
+        .modal-box .field textarea { min-height: 80px; resize: vertical; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+
+        /* ------ RESPONSIVE ------ */
+        @media (max-width: 600px) {
+            #dashHeader h1 { font-size: 12px; }
+            .dash-tab { padding: 8px 10px; font-size: 8px; }
+            #dashContent { padding: 10px; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0d0d1a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+    </style>
+</head>
+<body>
+    <div id="adminApp">
+        <!-- LOGIN SCREEN -->
+        <div id="loginScreen">
+            <h1>ADMIN PANEL</h1>
+            <p>Tank Battle Arena — Authorization Required</p>
+            <div style="width:40px;height:2px;background:#e94560;border-radius:1px;"></div>
+            <button id="adminGoogleBtn" onclick="adminSignIn()">SIGN IN WITH GOOGLE</button>
+            <div id="loginError"></div>
+            <p style="font-size:9px;color:#555;margin-top:20px;">Only authorized administrators can access this panel.</p>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div id="dashboard" style="display:none;">
+            <div id="dashHeader">
+                <div style="display:flex;align-items:center;gap:14px;">
+                    <h1>ADMIN</h1>
+                    <span id="adminUserEmail"></span>
+                </div>
+                <button onclick="adminSignOut()">SIGN OUT</button>
+            </div>
+
+            <div id="dashTabs">
+                <div class="dash-tab active" data-tab="overview" onclick="switchTab('overview')">📊 OVERVIEW</div>
+                <div class="dash-tab" data-tab="users" onclick="switchTab('users')">👥 USERS</div>
+                <div class="dash-tab" data-tab="leaderboard" onclick="switchTab('leaderboard')">🏆 LEADERBOARD</div>
+                <div class="dash-tab" data-tab="progression" onclick="switchTab('progression')">⚡ PROGRESSION</div>
+                <div class="dash-tab" data-tab="lobbies" onclick="switchTab('lobbies')">🎮 LOBBIES</div>
+                <div class="dash-tab" data-tab="controls" onclick="switchTab('controls')">🛠️ CONTROLS</div>
+                <div class="dash-tab" data-tab="raw" onclick="switchTab('raw')">🔧 RAW</div>
+                <div class="dash-tab" data-tab="feedback" onclick="switchTab('feedback')">💬 FEEDBACK</div>
+            </div>
+
+            <div id="dashContent">
+                <!-- OVERVIEW TAB -->
+                <div class="tab-panel active" id="panel-overview">
+                    <div class="stat-grid" id="overviewStats">
+                        <div class="stat-card"><div class="num" id="statUsers">—</div><div class="lbl">TOTAL USERS</div></div>
+                        <div class="stat-card"><div class="num" id="statOnline">—</div><div class="lbl">ONLINE NOW</div></div>
+                        <div class="stat-card"><div class="num" id="statLB">—</div><div class="lbl">LEADERBOARD</div></div>
+                        <div class="stat-card"><div class="num" id="statLobbies">—</div><div class="lbl">ACTIVE LOBBIES</div></div>
+                    </div>
+                    <div id="overviewRecent" style="margin-top:10px;"></div>
+                    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #222;">
+                        <button class="btn-sm danger" onclick="cleanupTestData()" style="padding:6px 14px;font-size:9px;">🧹 CLEAN UP TEST DATA</button>
+                        <span style="color:#555;font-size:8px;margin-left:8px;">Delete all test_user_* and debug_test_entry from users, leaderboard, and progression</span>
+                    </div>
+                </div>
+
+                <!-- USERS TAB -->
+                <div class="tab-panel" id="panel-users">
+                    <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;">
+                        <button class="user-filter-btn active" data-filter="all" onclick="setUserFilter('all')" style="flex:1;min-width:60px;padding:5px 8px;border-radius:4px;border:1px solid #555;background:rgba(52,152,219,0.3);color:#f39c12;font-size:9px;font-family:'Orbitron',monospace;cursor:pointer;transition:all 0.2s;">ALL</button>
+                        <button class="user-filter-btn" data-filter="real" onclick="setUserFilter('real')" style="flex:1;min-width:60px;padding:5px 8px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;font-family:'Orbitron',monospace;cursor:pointer;transition:all 0.2s;">REAL USERS</button>
+                        <button class="user-filter-btn" data-filter="test" onclick="setUserFilter('test')" style="flex:1;min-width:60px;padding:5px 8px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;font-family:'Orbitron',monospace;cursor:pointer;transition:all 0.2s;">TEST PROFILES</button>
+                    </div>
+                    <div class="search-bar">
+                        <input id="usersSearch" type="text" placeholder="Search by email, ID, or name..." oninput="renderUsers()">
+                    </div>
+                    <div id="bulkActionBar" style="display:none;align-items:center;gap:10px;margin-bottom:8px;padding:6px 10px;border-radius:4px;border:1px solid #e94560;background:rgba(233,69,96,0.08);">
+                        <span id="bulkCount" style="color:#e94560;font-size:10px;letter-spacing:1px;">0 SELECTED</span>
+                        <button class="btn-sm danger" onclick="deleteSelectedUsers()" style="padding:4px 12px;">DELETE ALL</button>
+                        <button class="btn-sm" onclick="clearSelection()" style="margin-left:auto;border-color:#666;">CLEAR</button>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="usersTable">
+                            <thead><tr>
+                                <th style="width:24px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" style="accent-color:#f39c12;"></th>
+                                <th>ID</th><th>Email</th><th>Name</th><th>Online</th><th>Last Login</th><th>Progression</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="usersBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- LEADERBOARD TAB -->
+                <div class="tab-panel" id="panel-leaderboard">
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">
+                        <button class="admin-lb-mode" data-mode="all" onclick="setLBMode('all')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:rgba(52,152,219,0.3);color:#f39c12;font-size:9px;cursor:pointer;">ALL</button>
+                        <button class="admin-lb-mode" data-mode="campaign" onclick="setLBMode('campaign')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">CAMPAIGN</button>
+                        <button class="admin-lb-mode" data-mode="solo" onclick="setLBMode('solo')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">SOLO</button>
+                        <button class="admin-lb-mode" data-mode="arcade" onclick="setLBMode('arcade')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">ARCADE</button>
+                        <button class="admin-lb-mode" data-mode="vs_ai" onclick="setLBMode('vs_ai')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">VS AI</button>
+                    </div>
+                    <div class="search-bar">
+                        <input id="lbSearch" type="text" placeholder="Search by name or ID..." oninput="renderLeaderboard()">
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="lbTable">
+                            <thead><tr><th>ID</th><th>Name</th><th>Mode</th><th>Score</th><th>Level</th><th>Timestamp</th><th>Actions</th></tr></thead>
+                            <tbody id="lbBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- PROGRESSION TAB -->
+                <div class="tab-panel" id="panel-progression">
+                    <div id="progContent" style="max-width:500px;">
+                        <p style="color:#666;margin-bottom:15px;">Edit your local progression data (gems, coins, XP, upgrades). Changes apply immediately.</p>
+                        <div id="progFields"></div>
+                        <div id="progUpgrades" style="margin-top:16px;"></div>
+                        <div id="progInventory" style="margin-top:16px;"></div>
+                    </div>
+                </div>
+
+                <!-- LOBBIES TAB -->
+                <div class="tab-panel" id="panel-lobbies">
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="lobbiesTable">
+                            <thead><tr><th>Lobby ID</th><th>Code</th><th>Mode</th><th>Status</th><th>Players</th><th>Actions</th></tr></thead>
+                            <tbody id="lobbiesBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CONTROLS TAB -->
+                <div class="tab-panel" id="panel-controls">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <p style="color:#888;font-size:9px;letter-spacing:1px;">Full control: gems, coins, XP, upgrades, campaign stage, skins, weapons — save per row.</p>
+                        <button class="btn-sm" onclick="loadControlsData()" style="border-color:#666;">REFRESH</button>
+                    </div>
+                    <div class="search-bar">
+                        <input id="controlsSearch" type="text" placeholder="Search by ID or name..." oninput="renderControls()">
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="controlsTable">
+                            <thead><tr>
+                                <th>ID</th><th>Name</th><th>Gems</th><th>Coins</th><th>XP</th>
+                                <th>Speed</th><th>Fuel</th><th>Mine Radius</th><th>Up. Pts</th><th>Stage</th>
+                                <th>Owned Skins</th><th>Eq. Skin</th><th>Owned Weapons</th><th>Eq. Weapon</th><th>Actions</th>
+                            </tr></thead>
+                            <tbody id="controlsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- RAW DATA TAB -->
+                <div class="tab-panel" id="panel-raw">
+                    <div class="search-bar">
+                        <input id="rawPath" type="text" placeholder="Firebase path (e.g. / or /users or /leaderboard)" value="/">
+                        <button class="btn-sm success" onclick="loadRaw()">LOAD</button>
+                    </div>
+                    <pre id="rawOutput" style="background:rgba(0,0,0,0.3);border:1px solid #222;border-radius:4px;padding:10px;font-size:9px;color:#bdc3c7;overflow:auto;max-height:60vh;white-space:pre-wrap;word-break:break-all;"></pre>
+                </div>
+
+                <!-- FEEDBACK TAB -->
+                <div class="tab-panel" id="panel-feedback">
+                    <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input id="feedbackSearch" type="text" placeholder="Search feedback..." oninput="renderFeedback()" style="padding:8px 12px;border-radius:4px;border:1px solid #333;background:#1a1a2e;color:#eaeaea;font-size:11px;width:200px;font-family:inherit;">
+                            <span id="feedbackCount" style="color:#666;font-size:10px;"></span>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-sm danger" onclick="clearAllFeedback()">🗑️ CLEAR ALL</button>
+                        </div>
+                    </div>
+                    <div style="overflow-x:auto;">
+                        <table class="data-table" id="feedbackTable">
+                            <thead><tr>
+                                <th>Date</th>
+                                <th>User</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                                <th>Actions</th>
+                            </tr></thead>
+                            <tbody id="feedbackBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="margin-top:16px;border-top:1px solid #222;padding-top:16px;">
+                        <p style="color:#888;font-size:9px;letter-spacing:1px;margin-bottom:8px;">🤖 AI ANALYSIS</p>
+                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
+                            <input id="nvidiaApiKey" type="password" placeholder="NVIDIA API Key" oninput="saveNvidiaKey()" style="padding:8px 12px;border-radius:4px;border:1px solid #333;background:#1a1a2e;color:#eaeaea;font-size:11px;width:280px;font-family:inherit;">
+                            <button class="btn-sm success" onclick="analyzeFeedback()" id="analyzeBtn">🔍 ANALYZE WITH AI</button>
+                        </div>
+                        <div id="aiAnalysisResult" style="background:rgba(0,0,0,0.3);border:1px solid #222;border-radius:4px;padding:12px;font-size:9px;color:#bdc3c7;min-height:40px;white-space:pre-wrap;line-height:1.6;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast"></div>
+
+    <!-- Firebase SDK (compat for non-module) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+    <script src="src/admin.js"></script>
+</body>
+</html>
