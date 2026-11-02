@@ -88,6 +88,13 @@
     return done + "/" + total;
   }
 
+  // Rows are written by the desktop app, but a signed-in user can write their
+  // own documents — never turn a stored string into a clickable javascript: URL.
+  function safeUrl(value) {
+    var url = String(value || "");
+    return /^https?:\/\//i.test(url) ? url : "";
+  }
+
   /* ---------------------------------------------------------------- login */
   firebase.initializeApp(CONFIG);
   var auth = firebase.auth();
@@ -316,8 +323,8 @@
       var samples = Array.isArray(r.sample_tracks) ? r.sample_tracks : [];
       var details = '<tr class="detail"><td colspan="9"><dl>' +
         "<dt>Playlist</dt><dd>" + esc(r.playlist || "—") + "</dd>" +
-        "<dt>Link</dt><dd>" + (r.link
-          ? '<a href="' + esc(r.link) + '" target="_blank" rel="noreferrer noopener">' + esc(r.link) + "</a>"
+        "<dt>Link</dt><dd>" + (safeUrl(r.link)
+          ? '<a href="' + esc(safeUrl(r.link)) + '" target="_blank" rel="noreferrer noopener">' + esc(safeUrl(r.link)) + "</a>"
           : "—") + "</dd>" +
         "<dt>User</dt><dd>" + esc(r.user_email || "unknown") + " · <code>" + esc(r.uid || "no uid") + "</code></dd>" +
         "<dt>Tracks</dt><dd>" + esc(r.tracks_done || 0) + " done · " + esc(r.tracks_failed || 0) + " failed · " +
@@ -467,6 +474,8 @@
   /* ------------------------------------------------------------ csv export */
   function csvCell(value) {
     var text = String(value == null ? "" : value);
+    // Stop a spreadsheet from treating user-controlled text as a formula.
+    if (/^[=+\-@]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   }
 
