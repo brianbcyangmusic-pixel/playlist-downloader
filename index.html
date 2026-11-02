@@ -1,381 +1,489 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tank Battle Arena — Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { height: 100%; }
-        body {
-            background: #0d0d1a;
-            color: #eaeaea;
-            font-family: 'Orbitron', monospace;
-            font-size: 12px;
-            overflow: hidden;
-        }
-        /* ------ LOGIN SCREEN ------ */
-        #adminApp {
-            width: 100%; height: 100%;
-            display: flex; flex-direction: column;
-        }
-        #loginScreen {
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            height: 100%; gap: 20px;
-        }
-        #loginScreen h1 { font-size: 28px; color: #e94560; letter-spacing: 4px; }
-        #loginScreen p { color: #666; font-size: 10px; letter-spacing: 2px; }
-        #loginScreen button {
-            padding: 12px 30px; border-radius: 8px;
-            border: 1px solid #555; background: rgba(52,152,219,0.2);
-            color: #f39c12; font-family: 'Orbitron', monospace;
-            font-size: 13px; cursor: pointer; transition: all 0.2s;
-        }
-        #loginScreen button:hover { background: rgba(52,152,219,0.4); border-color: #f39c12; }
-        #loginError { color: #e94560; font-size: 11px; min-height: 20px; }
-
-        /* ------ DASHBOARD ------ */
-        #dashboard { display: flex; flex-direction: column; height: 100%; }
-        #dashHeader {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 12px 20px; background: rgba(0,0,0,0.4);
-            border-bottom: 1px solid #222; flex-shrink: 0;
-        }
-        #dashHeader h1 { font-size: 16px; color: #e94560; letter-spacing: 3px; }
-        #dashHeader span { color: #666; font-size: 9px; }
-        #dashHeader button {
-            padding: 6px 14px; border-radius: 4px; border: 1px solid #555;
-            background: transparent; color: #999; cursor: pointer;
-            font-family: 'Orbitron', monospace; font-size: 9px;
-        }
-        #dashHeader button:hover { color: #f39c12; border-color: #f39c12; }
-
-        /* ------ TABS ------ */
-        #dashTabs {
-            display: flex; gap: 0; background: rgba(0,0,0,0.3);
-            border-bottom: 1px solid #222; flex-shrink: 0;
-        }
-        .dash-tab {
-            padding: 10px 18px; cursor: pointer; color: #666;
-            font-size: 10px; letter-spacing: 1px; transition: all 0.2s;
-            border-bottom: 2px solid transparent; user-select: none;
-        }
-        .dash-tab:hover { color: #aaa; }
-        .dash-tab.active { color: #f39c12; border-bottom-color: #f39c12; background: rgba(243,156,18,0.06); }
-
-        /* ------ CONTENT ------ */
-        #dashContent { flex: 1; overflow-y: auto; padding: 15px 20px; }
-        .tab-panel { display: none; }
-        .tab-panel.active { display: block; }
-
-        /* ------ CARDS ------ */
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; margin-bottom: 20px; }
-        .stat-card {
-            padding: 14px; border-radius: 8px; border: 1px solid #222;
-            background: rgba(0,0,0,0.3); text-align: center;
-        }
-        .stat-card .num { font-size: 28px; font-weight: 700; color: #f39c12; }
-        .stat-card .lbl { font-size: 8px; color: #888; letter-spacing: 2px; margin-top: 4px; }
-
-        /* ------ TABLE ------ */
-        .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
-        .data-table th {
-            text-align: left; padding: 8px 6px; border-bottom: 1px solid #333;
-            color: #888; font-weight: 400; letter-spacing: 1px; font-size: 9px;
-        }
-        .data-table td { padding: 6px; border-bottom: 1px solid #1a1a1a; vertical-align: top; }
-        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
-        .data-table .key-cell { color: #666; font-size: 8px; max-width: 200px; word-break: break-all; }
-        .data-table .val-cell { color: #bdc3c7; font-size: 9px; max-width: 300px; word-break: break-all; white-space: pre-wrap; }
-        .data-table .id-cell { color: #e67e22; font-size: 8px; max-width: 220px; word-break: break-all; }
-
-        /* ------ INLINE EDIT ------ */
-        .editable { cursor: pointer; border-bottom: 1px dashed #444; transition: border-color 0.2s; }
-        .editable:hover { border-color: #f39c12; }
-        .edit-input {
-            background: rgba(0,0,0,0.6); border: 1px solid #f39c12; border-radius: 3px;
-            color: #eaeaea; font-family: 'Orbitron', monospace; font-size: 10px;
-            padding: 2px 4px; width: 100px;
-        }
-        .ctrl-input {
-            background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 3px;
-            color: #eaeaea; font-family: 'Orbitron', monospace; font-size: 10px;
-            padding: 2px 4px; width: 60px; text-align: center; transition: border-color 0.2s;
-        }
-        .ctrl-input:focus { border-color: #f39c12; outline: none; }
-
-        /* ------ BUTTONS ------ */
-        .btn-sm {
-            padding: 3px 8px; border-radius: 3px; border: 1px solid #444;
-            background: transparent; color: #999; cursor: pointer;
-            font-family: 'Orbitron', monospace; font-size: 8px; transition: all 0.2s;
-        }
-        .btn-sm:hover { border-color: #f39c12; color: #f39c12; }
-        .btn-sm.danger { border-color: #e94560; color: #e94560; }
-        .btn-sm.danger:hover { background: rgba(233,69,96,0.2); }
-        .btn-sm.success { border-color: #27ae60; color: #27ae60; }
-        .btn-sm.success:hover { background: rgba(39,174,96,0.2); }
-
-        /* ------ EXPANDABLE ------ */
-        .expand-toggle { cursor: pointer; color: #3498db; user-select: none; }
-        .expand-toggle:hover { color: #f39c12; }
-        .expand-content { display: none; padding: 8px 0 8px 16px; }
-        .expand-content.open { display: block; }
-
-        /* ------ SEARCH ------ */
-        .search-bar {
-            display: flex; gap: 8px; margin-bottom: 12px;
-        }
-        .search-bar input {
-            flex: 1; padding: 6px 10px; border-radius: 4px; border: 1px solid #444;
-            background: rgba(0,0,0,0.4); color: #eaeaea;
-            font-family: 'Orbitron', monospace; font-size: 10px; outline: none;
-        }
-        .search-bar input:focus { border-color: #f39c12; }
-
-        /* ------ TOAST ------ */
-        #toast {
-            position: fixed; bottom: 20px; right: 20px;
-            padding: 10px 16px; border-radius: 6px; background: rgba(39,174,96,0.9);
-            color: #fff; font-size: 10px; font-family: 'Orbitron', monospace;
-            opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999;
-        }
-        #toast.error { background: rgba(233,69,96,0.9); }
-        #toast.show { opacity: 1; }
-
-        /* ------ LOADING ------ */
-        .loading { color: #555; text-align: center; padding: 20px; font-size: 10px; }
-
-        /* ------ STATUS DOT ------ */
-        .dot-online { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #27ae60; margin-right: 4px; }
-        .dot-offline { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #555; margin-right: 4px; }
-
-        /* ------ MODAL ------ */
-        .modal-overlay {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-            display: none; align-items: center; justify-content: center; z-index: 100;
-        }
-        .modal-overlay.open { display: flex; }
-        .modal-box {
-            background: #1a1a2e; border: 1px solid #333; border-radius: 10px;
-            padding: 20px; min-width: 340px; max-width: 90vw; max-height: 80vh;
-            overflow-y: auto;
-        }
-        .modal-box h2 { font-size: 14px; color: #f39c12; margin-bottom: 12px; letter-spacing: 2px; }
-        .modal-box .field { margin-bottom: 10px; }
-        .modal-box .field label { display: block; color: #888; font-size: 8px; letter-spacing: 1px; margin-bottom: 3px; }
-        .modal-box .field input, .modal-box .field textarea {
-            width: 100%; padding: 6px 8px; border-radius: 4px; border: 1px solid #444;
-            background: rgba(0,0,0,0.4); color: #eaeaea; font-family: 'Orbitron', monospace; font-size: 10px; outline: none;
-        }
-        .modal-box .field input:focus, .modal-box .field textarea:focus { border-color: #f39c12; }
-        .modal-box .field textarea { min-height: 80px; resize: vertical; }
-        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
-
-        /* ------ RESPONSIVE ------ */
-        @media (max-width: 600px) {
-            #dashHeader h1 { font-size: 12px; }
-            .dash-tab { padding: 8px 10px; font-size: 8px; }
-            #dashContent { padding: 10px; }
-            .stat-grid { grid-template-columns: repeat(2, 1fr); }
-        }
-
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: #0d0d1a; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playlist Downloader</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬇</text></svg>">
 </head>
 <body>
-    <div id="adminApp">
-        <!-- LOGIN SCREEN -->
-        <div id="loginScreen">
-            <h1>ADMIN PANEL</h1>
-            <p>Tank Battle Arena — Authorization Required</p>
-            <div style="width:40px;height:2px;background:#e94560;border-radius:1px;"></div>
-            <button id="adminGoogleBtn" onclick="adminSignIn()">SIGN IN WITH GOOGLE</button>
-            <div id="loginError"></div>
-            <p style="font-size:9px;color:#555;margin-top:20px;">Only authorized administrators can access this panel.</p>
-        </div>
 
-        <!-- DASHBOARD -->
-        <div id="dashboard" style="display:none;">
-            <div id="dashHeader">
-                <div style="display:flex;align-items:center;gap:14px;">
-                    <h1>ADMIN</h1>
-                    <span id="adminUserEmail"></span>
-                </div>
-                <button onclick="adminSignOut()">SIGN OUT</button>
-            </div>
+<!-- Shown by auth.js when this build requires an account and nobody is
+     signed in. It sits above everything, so the app underneath can finish
+     initialising without flashing its contents first. -->
+<div id="auth-gate" class="auth-gate" hidden>
+  <div class="auth-card">
+    <div class="auth-brand"><span class="logo">⬇</span> Playlist Downloader</div>
 
-            <div id="dashTabs">
-                <div class="dash-tab active" data-tab="overview" onclick="switchTab('overview')">📊 OVERVIEW</div>
-                <div class="dash-tab" data-tab="users" onclick="switchTab('users')">👥 USERS</div>
-                <div class="dash-tab" data-tab="leaderboard" onclick="switchTab('leaderboard')">🏆 LEADERBOARD</div>
-                <div class="dash-tab" data-tab="progression" onclick="switchTab('progression')">⚡ PROGRESSION</div>
-                <div class="dash-tab" data-tab="lobbies" onclick="switchTab('lobbies')">🎮 LOBBIES</div>
-                <div class="dash-tab" data-tab="controls" onclick="switchTab('controls')">🛠️ CONTROLS</div>
-                <div class="dash-tab" data-tab="raw" onclick="switchTab('raw')">🔧 RAW</div>
-                <div class="dash-tab" data-tab="feedback" onclick="switchTab('feedback')">💬 FEEDBACK</div>
-            </div>
+    <h2 id="auth-title">Sign in to continue</h2>
+    <p class="auth-sub" id="auth-sub">Your account ties your downloads to you, so problems can
+      be fixed and you can be told when something fails.</p>
 
-            <div id="dashContent">
-                <!-- OVERVIEW TAB -->
-                <div class="tab-panel active" id="panel-overview">
-                    <div class="stat-grid" id="overviewStats">
-                        <div class="stat-card"><div class="num" id="statUsers">—</div><div class="lbl">TOTAL USERS</div></div>
-                        <div class="stat-card"><div class="num" id="statOnline">—</div><div class="lbl">ONLINE NOW</div></div>
-                        <div class="stat-card"><div class="num" id="statLB">—</div><div class="lbl">LEADERBOARD</div></div>
-                        <div class="stat-card"><div class="num" id="statLobbies">—</div><div class="lbl">ACTIVE LOBBIES</div></div>
-                    </div>
-                    <div id="overviewRecent" style="margin-top:10px;"></div>
-                    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #222;">
-                        <button class="btn-sm danger" onclick="cleanupTestData()" style="padding:6px 14px;font-size:9px;">🧹 CLEAN UP TEST DATA</button>
-                        <span style="color:#555;font-size:8px;margin-left:8px;">Delete all test_user_* and debug_test_entry from users, leaderboard, and progression</span>
-                    </div>
-                </div>
+    <button class="auth-google" id="btn-google" hidden>
+      <svg viewBox="0 0 48 48" width="17" height="17" aria-hidden="true">
+        <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-2.8-.4-4H24v7.6h12.1c-.2 2-1.6 5-4.5 7l-.1.3 6.6 5.1.5.1c4.2-3.9 6.5-9.6 6.5-16.1"/>
+        <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.6-5.4l-7-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-.3.1-6.9 5.3-.1.3C8 42.6 15.4 46 24 46"/>
+        <path fill="#FBBC05" d="M11.5 28.3c-.5-1.4-.8-2.9-.8-4.4s.3-3 .7-4.4v-.3L4.4 13.8l-.2.1A22 22 0 0 0 2 23.9c0 3.6.9 7 2.2 10l7.3-5.6"/>
+        <path fill="#EA4335" d="M24 9.6c4.1 0 6.9 1.8 8.5 3.3l6.2-6C34.9 3.2 29.9 1 24 1 15.4 1 8 6.4 4.4 13.8l7.2 5.6C13.3 14 18.2 9.6 24 9.6"/>
+      </svg>
+      <span>Continue with Google</span>
+    </button>
 
-                <!-- USERS TAB -->
-                <div class="tab-panel" id="panel-users">
-                    <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;">
-                        <button class="user-filter-btn active" data-filter="all" onclick="setUserFilter('all')" style="flex:1;min-width:60px;padding:5px 8px;border-radius:4px;border:1px solid #555;background:rgba(52,152,219,0.3);color:#f39c12;font-size:9px;font-family:'Orbitron',monospace;cursor:pointer;transition:all 0.2s;">ALL</button>
-                        <button class="user-filter-btn" data-filter="real" onclick="setUserFilter('real')" style="flex:1;min-width:60px;padding:5px 8px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;font-family:'Orbitron',monospace;cursor:pointer;transition:all 0.2s;">REAL USERS</button>
-                        <button class="user-filter-btn" data-filter="test" onclick="setUserFilter('test')" style="flex:1;min-width:60px;padding:5px 8px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;font-family:'Orbitron',monospace;cursor:pointer;transition:all 0.2s;">TEST PROFILES</button>
-                    </div>
-                    <div class="search-bar">
-                        <input id="usersSearch" type="text" placeholder="Search by email, ID, or name..." oninput="renderUsers()">
-                    </div>
-                    <div id="bulkActionBar" style="display:none;align-items:center;gap:10px;margin-bottom:8px;padding:6px 10px;border-radius:4px;border:1px solid #e94560;background:rgba(233,69,96,0.08);">
-                        <span id="bulkCount" style="color:#e94560;font-size:10px;letter-spacing:1px;">0 SELECTED</span>
-                        <button class="btn-sm danger" onclick="deleteSelectedUsers()" style="padding:4px 12px;">DELETE ALL</button>
-                        <button class="btn-sm" onclick="clearSelection()" style="margin-left:auto;border-color:#666;">CLEAR</button>
-                    </div>
-                    <div style="overflow-x:auto;">
-                        <table class="data-table" id="usersTable">
-                            <thead><tr>
-                                <th style="width:24px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" style="accent-color:#f39c12;"></th>
-                                <th>ID</th><th>Email</th><th>Name</th><th>Online</th><th>Last Login</th><th>Progression</th><th>Actions</th>
-                            </tr></thead>
-                            <tbody id="usersBody"></tbody>
-                        </table>
-                    </div>
-                </div>
+    <div class="auth-or" id="auth-or" hidden><span>or use your email</span></div>
 
-                <!-- LEADERBOARD TAB -->
-                <div class="tab-panel" id="panel-leaderboard">
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">
-                        <button class="admin-lb-mode" data-mode="all" onclick="setLBMode('all')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:rgba(52,152,219,0.3);color:#f39c12;font-size:9px;cursor:pointer;">ALL</button>
-                        <button class="admin-lb-mode" data-mode="campaign" onclick="setLBMode('campaign')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">CAMPAIGN</button>
-                        <button class="admin-lb-mode" data-mode="solo" onclick="setLBMode('solo')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">SOLO</button>
-                        <button class="admin-lb-mode" data-mode="arcade" onclick="setLBMode('arcade')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">ARCADE</button>
-                        <button class="admin-lb-mode" data-mode="vs_ai" onclick="setLBMode('vs_ai')" style="flex:1;min-width:50px;padding:4px 5px;border-radius:4px;border:1px solid #555;background:transparent;color:#999;font-size:9px;cursor:pointer;">VS AI</button>
-                    </div>
-                    <div class="search-bar">
-                        <input id="lbSearch" type="text" placeholder="Search by name or ID..." oninput="renderLeaderboard()">
-                    </div>
-                    <div style="overflow-x:auto;">
-                        <table class="data-table" id="lbTable">
-                            <thead><tr><th>ID</th><th>Name</th><th>Mode</th><th>Score</th><th>Level</th><th>Timestamp</th><th>Actions</th></tr></thead>
-                            <tbody id="lbBody"></tbody>
-                        </table>
-                    </div>
-                </div>
+    <form id="auth-form" autocomplete="on">
+      <label class="auth-field" id="auth-name-wrap" hidden>
+        <span>Name <em>(optional)</em></span>
+        <input id="auth-name" type="text" autocomplete="name" placeholder="Alex">
+      </label>
+      <label class="auth-field">
+        <span>Email</span>
+        <input id="auth-email" type="email" autocomplete="email" required
+               placeholder="you@example.com" spellcheck="false">
+      </label>
+      <label class="auth-field">
+        <span>Password</span>
+        <input id="auth-password" type="password" autocomplete="current-password"
+               required placeholder="••••••••" minlength="6">
+      </label>
+      <p class="auth-error" id="auth-error" hidden></p>
+      <button class="primary auth-submit" id="auth-submit" type="submit">Sign in</button>
+    </form>
 
-                <!-- PROGRESSION TAB -->
-                <div class="tab-panel" id="panel-progression">
-                    <div id="progContent" style="max-width:500px;">
-                        <p style="color:#666;margin-bottom:15px;">Edit your local progression data (gems, coins, XP, upgrades). Changes apply immediately.</p>
-                        <div id="progFields"></div>
-                        <div id="progUpgrades" style="margin-top:16px;"></div>
-                        <div id="progInventory" style="margin-top:16px;"></div>
-                    </div>
-                </div>
-
-                <!-- LOBBIES TAB -->
-                <div class="tab-panel" id="panel-lobbies">
-                    <div style="overflow-x:auto;">
-                        <table class="data-table" id="lobbiesTable">
-                            <thead><tr><th>Lobby ID</th><th>Code</th><th>Mode</th><th>Status</th><th>Players</th><th>Actions</th></tr></thead>
-                            <tbody id="lobbiesBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- CONTROLS TAB -->
-                <div class="tab-panel" id="panel-controls">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                        <p style="color:#888;font-size:9px;letter-spacing:1px;">Full control: gems, coins, XP, upgrades, campaign stage, skins, weapons — save per row.</p>
-                        <button class="btn-sm" onclick="loadControlsData()" style="border-color:#666;">REFRESH</button>
-                    </div>
-                    <div class="search-bar">
-                        <input id="controlsSearch" type="text" placeholder="Search by ID or name..." oninput="renderControls()">
-                    </div>
-                    <div style="overflow-x:auto;">
-                        <table class="data-table" id="controlsTable">
-                            <thead><tr>
-                                <th>ID</th><th>Name</th><th>Gems</th><th>Coins</th><th>XP</th>
-                                <th>Speed</th><th>Fuel</th><th>Mine Radius</th><th>Up. Pts</th><th>Stage</th>
-                                <th>Owned Skins</th><th>Eq. Skin</th><th>Owned Weapons</th><th>Eq. Weapon</th><th>Actions</th>
-                            </tr></thead>
-                            <tbody id="controlsBody"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- RAW DATA TAB -->
-                <div class="tab-panel" id="panel-raw">
-                    <div class="search-bar">
-                        <input id="rawPath" type="text" placeholder="Firebase path (e.g. / or /users or /leaderboard)" value="/">
-                        <button class="btn-sm success" onclick="loadRaw()">LOAD</button>
-                    </div>
-                    <pre id="rawOutput" style="background:rgba(0,0,0,0.3);border:1px solid #222;border-radius:4px;padding:10px;font-size:9px;color:#bdc3c7;overflow:auto;max-height:60vh;white-space:pre-wrap;word-break:break-all;"></pre>
-                </div>
-
-                <!-- FEEDBACK TAB -->
-                <div class="tab-panel" id="panel-feedback">
-                    <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <input id="feedbackSearch" type="text" placeholder="Search feedback..." oninput="renderFeedback()" style="padding:8px 12px;border-radius:4px;border:1px solid #333;background:#1a1a2e;color:#eaeaea;font-size:11px;width:200px;font-family:inherit;">
-                            <span id="feedbackCount" style="color:#666;font-size:10px;"></span>
-                        </div>
-                        <div style="display:flex;gap:8px;">
-                            <button class="btn-sm danger" onclick="clearAllFeedback()">🗑️ CLEAR ALL</button>
-                        </div>
-                    </div>
-                    <div style="overflow-x:auto;">
-                        <table class="data-table" id="feedbackTable">
-                            <thead><tr>
-                                <th>Date</th>
-                                <th>User</th>
-                                <th>Type</th>
-                                <th>Message</th>
-                                <th>Actions</th>
-                            </tr></thead>
-                            <tbody id="feedbackBody"></tbody>
-                        </table>
-                    </div>
-                    <div style="margin-top:16px;border-top:1px solid #222;padding-top:16px;">
-                        <p style="color:#888;font-size:9px;letter-spacing:1px;margin-bottom:8px;">🤖 AI ANALYSIS</p>
-                        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;">
-                            <input id="nvidiaApiKey" type="password" placeholder="NVIDIA API Key" oninput="saveNvidiaKey()" style="padding:8px 12px;border-radius:4px;border:1px solid #333;background:#1a1a2e;color:#eaeaea;font-size:11px;width:280px;font-family:inherit;">
-                            <button class="btn-sm success" onclick="analyzeFeedback()" id="analyzeBtn">🔍 ANALYZE WITH AI</button>
-                        </div>
-                        <div id="aiAnalysisResult" style="background:rgba(0,0,0,0.3);border:1px solid #222;border-radius:4px;padding:12px;font-size:9px;color:#bdc3c7;min-height:40px;white-space:pre-wrap;line-height:1.6;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="auth-links">
+      <button class="linklike" id="auth-toggle" type="button">Create an account</button>
+      <button class="linklike" id="auth-forgot" type="button">Forgot password?</button>
     </div>
 
-    <!-- TOAST -->
-    <div id="toast"></div>
+    <p class="auth-note" id="auth-note">
+      While you are signed in, this app records your email, the playlist links
+      you download and any errors, so the developer can help when something
+      breaks. Nothing else is collected.
+    </p>
+  </div>
+</div>
 
-    <!-- Firebase SDK (compat for non-module) -->
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">⬇</span>
+    <div>
+      <h1>Playlist Downloader</h1>
+      <span class="muted" id="version">—</span>
+    </div>
+  </div>
 
-    <script src="src/admin.js"></script>
+  <div class="stats" id="stats">
+    <div class="stat"><b id="stat-total">0</b><span>total</span></div>
+    <div class="stat ok"><b id="stat-done">0</b><span>done</span></div>
+    <div class="stat"><b id="stat-skipped">0</b><span>skipped</span></div>
+    <div class="stat run"><b id="stat-active">0</b><span>downloading</span></div>
+    <div class="stat warn"><b id="stat-pending">0</b><span>pending</span></div>
+    <div class="stat bad"><b id="stat-failed">0</b><span>failed</span></div>
+  </div>
+
+  <div class="controls">
+    <button id="btn-start" class="primary">▶ Start</button>
+    <button id="btn-pause" hidden>⏸ Pause</button>
+    <button id="btn-resume" hidden>▶ Resume</button>
+    <button id="btn-stop" class="danger" hidden>⏹ Stop</button>
+    <button id="btn-retry" class="ghost">↻ Retry failed</button>
+    <button id="btn-help" class="ghost" title="Show the step-by-step guided tour">❓ How to use</button>
+    <span class="account" id="account" hidden>
+      <button class="ghost account-btn" id="btn-account" title="Signed in">
+        <span class="account-dot"></span><span id="account-email">—</span>
+      </button>
+      <button class="ghost" id="btn-signout" title="Sign out of this app">Sign out</button>
+    </span>
+    <button id="btn-quit" class="ghost" title="Stop the background service">⏻ Quit</button>
+  </div>
+
+  <div id="update-banner" class="update-banner" hidden>
+    <span id="update-banner-text">A new version is available.</span>
+    <span class="row" style="gap:8px">
+      <button class="ghost" id="btn-update-preview">🔍 Preview</button>
+      <button class="update-btn-animated" id="btn-update-install" style="position:relative;overflow:hidden;padding:8px 16px;border-radius:8px;cursor:pointer">⚡ Update &amp; restart</button>
+      <button class="ghost" id="btn-update-dismiss" title="Later">✕</button>
+    </span>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="download">Download</button>
+  <button class="tab" data-tab="compare">Compare folder</button>
+  <button class="tab" data-tab="settings">Settings</button>
+  <button class="tab" data-tab="log">Activity</button>
+  <span class="conn" id="conn">connecting…</span>
+</nav>
+
+<main>
+
+  <!-- ============================ DOWNLOAD ============================ -->
+  <section class="panel active" id="tab-download">
+    <div class="card" id="card-quick">
+      <h2>Download something</h2>
+      <div class="row">
+        <input id="quick-input" type="text" spellcheck="false"
+               placeholder="Paste a YouTube / YouTube Music / Spotify link, or a .txt / folder path">
+        <button class="primary" id="btn-quick">⬇ Download</button>
+      </div>
+      <p class="hint" id="quick-hint">Paste a link and press <b>Download</b> — it imports and starts right away, using the folder and format saved in Settings.</p>
+    </div>
+
+    <div class="card" id="card-tools" hidden>
+      <h2>One-time setup</h2>
+      <p class="hint" id="tools-hint">This computer needs two helper programs before audio can be extracted.</p>
+      <div class="row">
+        <button class="primary" id="btn-tools-install">Install required tools</button>
+        <span class="muted" id="tools-status"></span>
+      </div>
+      <div class="setup-progress" id="tools-progress" hidden>
+        <div class="setup-track"><i id="tools-progress-fill"></i></div>
+        <div class="setup-meta">
+          <span id="tools-progress-text">Connecting…</span>
+          <span id="tools-progress-pct">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="split">
+
+      <aside class="sidebar">
+        <div class="card" id="card-add">
+          <h2>Add a playlist</h2>
+          <label class="field">
+            <span>Source</span>
+            <select id="import-source">
+              <option value="auto">Auto-detect</option>
+              <option value="youtube">YouTube / YouTube Music</option>
+              <option value="spotify">Spotify playlist</option>
+              <option value="file">Text or CSV file</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Link or file path</span>
+            <textarea id="import-input" rows="3"
+              placeholder="https://music.youtube.com/playlist?list=…&#10;https://open.spotify.com/playlist/…&#10;/Users/you/Desktop/songs.txt"></textarea>
+          </label>
+          <label class="field">
+            <span>Download as</span>
+            <select id="import-mode">
+              <option value="audio">Music (audio)</option>
+              <option value="video">Video</option>
+            </select>
+          </label>
+          <button id="btn-import" class="primary wide">＋ Import playlist</button>
+          <p class="hint" id="import-hint"></p>
+        </div>
+
+        <div class="card grow">
+          <h2>Your playlists</h2>
+          <div id="playlist-list" class="playlist-list">
+            <p class="empty">No playlists yet.</p>
+          </div>
+        </div>
+      </aside>
+
+      <div class="content">
+        <div class="card" id="card-queue">
+          <div class="card-head">
+            <h2 id="queue-title">Queue</h2>
+            <div class="row">
+              <input id="queue-filter" class="search" type="search" placeholder="Filter by title or artist…">
+              <select id="queue-status-filter">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="downloading">Downloading</option>
+                <option value="done">Done</option>
+                <option value="failed">Failed</option>
+                <option value="skipped">Skipped</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="queue-table">
+              <thead>
+                <tr>
+                  <th class="col-num">#</th>
+                  <th>Title</th>
+                  <th class="col-artist">Artist</th>
+                  <th class="col-status">Status</th>
+                  <th class="col-progress">Progress</th>
+                  <th class="col-actions"></th>
+                </tr>
+              </thead>
+              <tbody id="queue-body">
+                <tr><td colspan="6" class="empty">Import a playlist to get started.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ COMPARE ============================ -->
+  <section class="panel" id="tab-compare">
+    <div class="card" id="card-compare">
+      <h2>Compare a folder against a playlist</h2>
+      <p class="hint">
+        Finds which tracks from a playlist are <b>missing</b> from a folder, and which
+        files exist that are not in the playlist. Matching is fuzzy, so
+        <code>Artist - Title</code>, tags, and noisy YouTube titles all line up.
+      </p>
+
+      <div class="grid-3">
+        <label class="field">
+          <span>Playlist</span>
+          <select id="compare-playlist"><option value="">— choose —</option></select>
+        </label>
+        <label class="field">
+          <span>Folder to scan</span>
+          <div class="row">
+            <input id="compare-folder" type="text" placeholder="/Users/you/Music">
+            <button id="btn-browse" class="ghost">Browse…</button>
+          </div>
+        </label>
+        <label class="field">
+          <span>Match strictness <em id="threshold-label">balanced</em></span>
+          <input id="compare-threshold" type="range" min="0.5" max="0.95" step="0.01" value="0.72">
+        </label>
+      </div>
+
+      <div class="row wrap gap">
+        <label class="check"><input type="checkbox" id="compare-recursive" checked> Include sub-folders</label>
+        <label class="check"><input type="checkbox" id="compare-read-tags" checked> Read ID3 tags</label>
+        <label class="check"><input type="checkbox" id="compare-ignore-extra" checked> Ignore extra files</label>
+        <button id="btn-compare" class="primary">⇄ Compare</button>
+      </div>
+      <p class="hint" id="compare-status"></p>
+    </div>
+
+    <div class="card" id="compare-results" hidden>
+      <div class="card-head">
+        <h2>Results</h2>
+        <div class="row gap">
+          <button class="mini-tab active" data-cres="missing">Missing</button>
+          <button class="mini-tab" data-cres="matched">Matched</button>
+          <button class="mini-tab" data-cres="extra">Extra files</button>
+        </div>
+      </div>
+      <div class="compare-summary" id="compare-summary"></div>
+
+      <div id="cres-missing" class="cres active">
+        <div class="row gap wrap">
+          <button id="btn-import-missing" class="primary">⬇ Add missing tracks to queue</button>
+          <button id="btn-export-missing" class="ghost">⤓ Export list (.txt)</button>
+        </div>
+        <div class="table-wrap"><table id="missing-table">
+          <thead><tr><th class="col-num">#</th><th>Title</th><th>Artist</th><th>Closest match on disk</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <div id="cres-matched" class="cres">
+        <div class="table-wrap"><table id="matched-table">
+          <thead><tr><th class="col-num">#</th><th>Playlist track</th><th>Matched file</th><th class="col-score">Score</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+
+      <div id="cres-extra" class="cres">
+        <p class="hint">Files in the folder that did not match any playlist track.</p>
+        <div class="table-wrap"><table id="extra-table">
+          <thead><tr><th class="col-num">#</th><th>File</th><th>Artist</th><th>Album</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ SETTINGS ============================ -->
+  <section class="panel" id="tab-settings">
+    <div class="card" id="card-where">
+      <h2>Where files go</h2>
+      <div class="field-row">
+        <label class="field grow">
+          <span>Download folder</span>
+          <input type="text" id="set-download_dir">
+        </label>
+        <button class="ghost" id="btn-reveal">Open folder</button>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="set-make_playlist_subfolder"> Put a multi-track playlist in its own folder (named after the playlist)</label>
+    </div>
+
+    <div class="card" id="card-music">
+      <h2>Music</h2>
+      <div class="grid-3">
+        <label class="field"><span>Format</span>
+          <select id="set-audio_format">
+            <option value="mp3">MP3</option><option value="m4a">M4A / AAC</option>
+            <option value="opus">Opus</option><option value="flac">FLAC (lossless)</option>
+            <option value="wav">WAV</option><option value="original">Keep original</option>
+          </select></label>
+        <label class="field"><span>Quality</span>
+          <select id="set-audio_quality">
+            <option value="320">320 kbps (best)</option><option value="256">256 kbps</option>
+            <option value="192">192 kbps</option><option value="128">128 kbps</option>
+            <option value="best">Best available</option>
+          </select></label>
+        <label class="field"><span>Filename pattern</span>
+          <input type="text" id="set-audio_filename"></label>
+      </div>
+      <div class="row wrap gap">
+        <label class="check"><input type="checkbox" id="set-tag_metadata"> Write tags (artist, album, title)</label>
+        <label class="check"><input type="checkbox" id="set-embed_cover_art"> Embed cover art</label>
+        <label class="check"><input type="checkbox" id="set-write_cover_file"> Save cover.jpg beside tracks</label>
+        <label class="check"><input type="checkbox" id="set-rename_to_metadata"> Rename to “Artist - Title”</label>
+      </div>
+    </div>
+
+    <div class="card" id="card-video">
+      <h2>Video</h2>
+      <div class="grid-3">
+        <label class="field"><span>Container</span>
+          <select id="set-video_format">
+            <option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option>
+          </select></label>
+        <label class="field"><span>Max quality</span>
+          <select id="set-video_quality">
+            <option value="best">Best available</option><option value="2160">4K (2160p)</option>
+            <option value="1440">1440p</option><option value="1080">1080p</option>
+            <option value="720">720p</option><option value="480">480p</option>
+          </select></label>
+        <label class="field"><span>Filename pattern</span>
+          <input type="text" id="set-video_filename"></label>
+      </div>
+    </div>
+
+    <div class="card" id="card-speed">
+      <h2>Speed &amp; stability</h2>
+      <div class="grid-3">
+        <label class="field"><span>Parallel downloads <em id="lbl-workers"></em></span>
+          <input type="range" id="set-concurrent_downloads" min="1" max="10" step="1"></label>
+        <label class="field"><span>Parallel chunks per file <em id="lbl-frags"></em></span>
+          <input type="range" id="set-concurrent_fragments" min="1" max="8" step="1"></label>
+        <label class="field"><span>Speed limit (KB/s, 0 = off)</span>
+          <input type="number" id="set-rate_limit_kbps" min="0" step="50"></label>
+        <label class="field"><span>Network retries inside one attempt</span>
+          <input type="number" id="set-retries" min="0" step="1"></label>
+        <label class="field"><span>Attempts per track <em id="lbl-item-retries"></em></span>
+          <input type="range" id="set-item_retries" min="1" max="10" step="1"></label>
+        <label class="field"><span>Retry backoff (seconds)</span>
+          <input type="number" id="set-retry_delay_seconds" min="1" step="1"></label>
+        <label class="field"><span>Socket timeout (s)</span>
+          <input type="number" id="set-socket_timeout" min="5" step="5"></label>
+        <label class="field"><span>Delay between requests (s)</span>
+          <input type="number" id="set-sleep_between_requests" min="0" step="0.5"></label>
+      </div>
+      <div class="row wrap gap">
+        <label class="check"><input type="checkbox" id="set-use_archive"> Never re-download finished tracks</label>
+        <label class="check"><input type="checkbox" id="set-skip_existing_files"> Skip items whose file already exists</label>
+        <label class="check"><input type="checkbox" id="set-auto_retry_failed"> Auto-retry failures once after a run</label>
+        <label class="check"><input type="checkbox" id="set-dry_run"> Test mode — resolve tracks, download nothing</label>
+      </div>
+      <p class="hint">
+        3–4 parallel downloads is the sweet spot. YouTube throttles bursts, so the app
+        retries transient failures with backoff instead of giving up — that matters
+        when you queue a few thousand tracks. Use <b>Test mode</b> to check that a big
+        playlist resolves correctly before committing to the download.
+      </p>
+    </div>
+
+    <div class="card" id="card-access">
+      <h2>Access &amp; networking</h2>
+      <div class="grid-3">
+        <label class="field"><span>Cookies from browser (for private playlists)</span>
+          <select id="set-cookies_from_browser">
+            <option value="">None</option><option value="chrome">Chrome</option>
+            <option value="firefox">Firefox</option><option value="edge">Edge</option>
+            <option value="brave">Brave</option><option value="safari">Safari</option>
+          </select></label>
+        <label class="field"><span>Proxy (optional)</span>
+          <input type="text" id="set-proxy" placeholder="http://host:port"></label>
+        <label class="field"><span>ffmpeg path</span>
+          <input type="text" id="set-ffmpeg_path"></label>
+      </div>
+      <div class="grid-3">
+        <label class="field"><span>Spotify Client ID (optional)</span>
+          <input type="text" id="set-spotify_client_id" autocomplete="off"></label>
+        <label class="field"><span>Spotify Client Secret (optional)</span>
+          <input type="password" id="set-spotify_client_secret" autocomplete="off"></label>
+        <label class="field"><span>&nbsp;</span>
+          <label class="check"><input type="checkbox" id="set-resolve_missing_to_youtube"> Search YouTube for Spotify tracks</label></label>
+      </div>
+      <p class="hint">Optional, but recommended for long playlists. Spotify's public page only lists the <b>first 100 tracks</b> — add free credentials from developer.spotify.com to import a playlist of any length, with accurate album metadata.</p>
+    </div>
+
+    <div class="card" id="card-updates">
+      <h2>Updates</h2>
+      <div class="row space">
+        <div>
+          <div class="muted">This version: <b id="update-current">—</b></div>
+          <div class="muted" id="update-status">Not checked yet.</div>
+        </div>
+        <button class="ghost" id="btn-check-update">Check for updates</button>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="set-auto_check_updates"> Check for updates automatically when the app starts</label>
+    </div>
+
+    <div class="card">
+      <div class="row space">
+        <div class="tools" id="tool-status"></div>
+        <button id="btn-save" class="primary">Save settings</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================== LOG ============================== -->
+  <section class="panel" id="tab-log">
+    <div class="card" id="card-log">
+      <div class="card-head">
+        <h2>Activity</h2>
+        <button class="ghost" id="btn-clear-log">Clear</button>
+      </div>
+      <div id="log-view" class="log-view"></div>
+    </div>
+  </section>
+
+</main>
+
+<div id="toasts" class="toasts"></div>
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head"><h3>Choose a folder</h3><button class="ghost" id="modal-close">✕</button></div>
+    <div class="modal-path" id="modal-path"></div>
+    <div class="modal-list" id="modal-list"></div>
+    <div class="modal-foot">
+      <button class="ghost" id="modal-up">↑ Up</button>
+      <button class="primary" id="modal-pick">Choose this folder</button>
+    </div>
+  </div>
+</div>
+
+<div id="dest-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head"><h3>Where should these go?</h3><button class="ghost" id="dest-close">✕</button></div>
+    <div class="modal-body">
+      <label class="field">
+        <span>Save to folder</span>
+        <div class="row">
+          <input id="dest-path" type="text" spellcheck="false" placeholder="~/Downloads/Playlist Downloader">
+          <button class="ghost" id="dest-choose">Choose…</button>
+        </div>
+      </label>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="dest-subfolder"> Put a multi-track playlist in its own folder</label>
+      <p class="hint" id="dest-preview"></p>
+    </div>
+    <div class="modal-foot">
+      <button class="ghost" id="dest-cancel">Cancel</button>
+      <button class="primary" id="dest-go">Start download</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
+<script src="app.js"></script>
+<script src="tour.js"></script>
 </body>
 </html>
