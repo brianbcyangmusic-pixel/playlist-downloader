@@ -62,6 +62,10 @@
       const label = auth.user && auth.user.name ? auth.user.name : email;
       $("#btn-account").title = `${label} — signed in`;
     }
+    // The owner gets a shortcut to the hosted dashboard; everyone else never
+    // sees the link (the dashboard also refuses non-owner accounts).
+    const adminLink = $("#btn-admin");
+    if (adminLink && auth && auth.admin) adminLink.hidden = false;
     resolveReady();
   }
 

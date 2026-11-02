@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// Firestore rules for Playlist Downloader.
+//
+// This is the copy that is deployed to playlist-downloader-99ad0; the
+// dashboard in admin/ reads `downloads` and `errors` as the owner.
+//
+// Replace OWNER_EMAIL with the address that should see every user's activity.
+// That account must exist in Authentication before you share the app with
+// anyone — whoever signs up with that address first would own the dashboard.
+// (This copy is already set to brian.bcyang27@gmail.com.)
+//
+// Note on email verification: the rule below compares the email address only.
+// If you would rather require a verified address too (recommended if you ever
+// open the app to strangers), add the line marked STRICTER and verify the
+// owner account by email first.
+//
+// What this allows:
+//   * a signed-in app may create and update *its own* rows;
+//   * nobody can read anyone else's rows;
+//   * the owner can read everything (that is the dashboard);
+//   * nobody can delete history from a client.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function owner() {
+      return request.auth != null
+        && request.auth.token.email == 'brian.bcyang27@gmail.com';
+        // STRICTER: && request.auth.token.email_verified == true;
+    }
+
+    function mine() {
+      return request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+    }
+
+    // One document per playlist download, written by the desktop app.
+    match /downloads/{doc} {
+      allow create: if mine()
+                    && request.resource.data.user_email == request.auth.token.email;
+      allow read:   if owner()
+                    || (request.auth != null && resource.data.uid == request.auth.uid);
+      allow update: if owner()
+                    || (request.auth != null
+                        && resource.data.uid == request.auth.uid
+                        && request.resource.data.uid == resource.data.uid);
+      allow delete: if false;
+    }
+
+    // Failures worth a Telegram message. Only the owner may read them back.
+    //
+    // A failed *sign-in* is logged before any session exists, so that single
+    // case is allowed without authentication. It is fenced in tightly: the kind
+    // must be auth_failed, the row must start un-notified, and the message is
+    // length-capped. Everything else still needs a real session.
+    match /errors/{doc} {
+      allow create: if mine()
+                    || (request.auth == null
+                        && request.resource.data.kind == 'auth_failed'
+                        && request.resource.data.notified == false
+                        && request.resource.data.message is string
+                        && request.resource.data.message.size() <= 400
+                        && request.resource.data.email is string
+                        && request.resource.data.email.size() <= 200);
+      allow read:   if owner();
+      allow update: if owner();
+      allow delete: if false;
+    }
+  }
+}
