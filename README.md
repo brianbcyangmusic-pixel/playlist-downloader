@@ -18,7 +18,7 @@ A modern desktop app to download playlists from YouTube, YouTube Music, and Spot
 The owner dashboard lives in [`docs/`](docs/) (hosted on GitHub Pages, mirrored
 on Firebase Hosting) and is deployed to the same Firebase project the app writes to:
 
-**https://brianbcyangmusic-pixel.github.io/playlist-downloader/**
+**https://brianbcyangmusic-pixel.github.io/playlist-downloader/admin.html**
 
 Sign in with **Google** as `brian.bcyang27@gmail.com` (the `admin_email` in
 `cloud_config.json`). There is no password on that account — it was created

@@ -202,7 +202,7 @@ Firebase CLI auth: logged in as `brian.bcyang27@gmail.com` (config in
 
 ## 5. Admin dashboard
 
-URL: **https://brianbcyangmusic-pixel.github.io/playlist-downloader/** (GitHub Pages)
+URL: **https://brianbcyangmusic-pixel.github.io/playlist-downloader/admin.html** (GitHub Pages)
 Mirror: https://playlist-downloader-99ad0.web.app
 
 ### Login
@@ -333,7 +333,7 @@ published by `.github/workflows/build-apps.yml` on tag push (`v*`).
 - [ ] Open UI, add a playlist (if tools present) and test download flow
 - [ ] `firebase login:list` shows `brian.bcyang27@gmail.com`
 - [ ] `firebase deploy --only hosting --project playlist-downloader-99ad0` succeeds
-- [ ] `https://brianbcyangmusic-pixel.github.io/playlist-downloader/` loads, Google sign-in as owner works
+- [ ] `https://brianbcyangmusic-pixel.github.io/playlist-downloader/admin.html` loads, Google sign-in as owner works
 - [ ] Desktop app Google sign-in opens the hosted login page and completes handoff
 - [ ] Firestore has `downloads`/`errors` populated by a signed-in run
 - [ ] Owner can read them in dashboard; non-owner cannot
@@ -346,7 +346,7 @@ published by `.github/workflows/build-apps.yml` on tag push (`v*`).
 | Add API endpoint | `app/api.py` (add route in handler + method) |
 | Change telemetry fields | `app/telemetry.py`, check Firestore rules allow new fields |
 | Update default repo/version | `app/__init__.py` (`__version__`), `app/updater.py` (`REPO_DEFAULT`) |
-| Change dashboard UI | `docs/index.html`, `docs/admin.js`, redeploy hosting |
+| Change dashboard UI | `docs/admin.html`, `docs/admin.js`, redeploy hosting |
 | Change app UI | `web/*`, restarts pick up files from `web_dir()` |
 | Change auth flow | `app/cloud.py`, `app/api.py`, `web/auth.js`, `docs/login.html` |
 | Change Firebase config | `cloud_config.json` (and copy to `Contents/Resources/` if shipping bundle) |
@@ -358,7 +358,7 @@ published by `.github/workflows/build-apps.yml` on tag push (`v*`).
 
 ## 12. Current state (for context)
 
-- GitHub Pages: https://brianbcyangmusic-pixel.github.io/playlist-downloader/ (admin dashboard + login)
+- GitHub Pages: https://brianbcyangmusic-pixel.github.io/playlist-downloader/admin.html (admin dashboard + login)
 - Firebase Hosting mirror: https://playlist-downloader-99ad0.web.app
 - Owner: `brian.bcyang27@gmail.com` (Google)
 - `login_url` points to the GitHub Pages login page
