@@ -2,6 +2,9 @@
 
 A modern desktop app to download playlists from YouTube, YouTube Music, and Spotify as MP3/MP4.
 
+> **Start here:** [WHAT-YOU-NEED-TO-DO.md](WHAT-YOU-NEED-TO-DO.md) — your login
+> account, the dashboard URL, and the GitHub push that is currently blocked.
+
 ## Features
 - Download playlists from YouTube Music, YouTube, and Spotify
 - Convert to MP3, M4A, Opus, FLAC, or keep original
