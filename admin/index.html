@@ -69,6 +69,14 @@ button.primary:hover { background: #4d88ff; }
 button.danger { color: var(--bad); border-color: rgba(255,107,107,.35); }
 button.danger:hover { background: rgba(255,107,107,.1); }
 .wide { width: 100%; margin-top: 18px; }
+#google-btn { margin-top: 0; }
+.divider {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted); font-size: 11px; margin: 18px 0 4px;
+}
+.divider::before, .divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border);
+}
 .msg { margin-top: 14px; font-size: 13px; min-height: 18px; color: var(--bad); }
 .msg.ok { color: var(--ok); }
 
@@ -190,11 +198,13 @@ td.actions { white-space: nowrap; }
         <span class="muted">Admin dashboard</span>
       </div>
     </div>
+    <button class="primary wide" id="google-btn" type="button">Continue with Google</button>
+    <p class="divider"><span>or sign in with email</span></p>
     <label for="login-email">Email</label>
-    <input id="login-email" type="email" autocomplete="username" required>
+    <input id="login-email" type="email" autocomplete="username">
     <label for="login-password">Password</label>
-    <input id="login-password" type="password" autocomplete="current-password" required>
-    <button class="primary wide" id="login-submit" type="submit">Sign in</button>
+    <input id="login-password" type="password" autocomplete="current-password">
+    <button class="wide" id="login-submit" type="submit">Sign in with email</button>
     <div class="msg" id="login-msg" role="status"></div>
     <p class="muted" style="margin-top:18px">
       Only the owner account can open this dashboard. Everyone else is signed out.

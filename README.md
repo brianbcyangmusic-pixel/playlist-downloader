@@ -17,10 +17,15 @@ Hosting (same Firebase project the app writes to):
 
 **https://playlist-downloader-99ad0.web.app**
 
-Sign in with the owner account (`admin_email` in `cloud_config.json`). It reads
-the `downloads` and `errors` collections, so it shows who downloaded which
-playlist, track counts, failures, and every reported error. Anyone else who
-signs in is refused — see [`firestore.rules`](firestore.rules).
+Sign in with **Google** as `brian.bcyang27@gmail.com` (the `admin_email` in
+`cloud_config.json`). There is no password on that account — it was created
+with Google Sign-In. It reads the `downloads` and `errors` collections, so it
+shows who downloaded which playlist, track counts, failures, and every reported
+error. Anyone else who signs in is refused — see [`firestore.rules`](firestore.rules).
+
+The same site hosts `login.html`, the browser page the desktop app opens for
+**Sign in with Google** (`login_url` in `cloud_config.json`). It hands the
+Firebase session back to the app's loopback server, so no secret ships in the app.
 
 Redeploy after editing `admin/`:
 

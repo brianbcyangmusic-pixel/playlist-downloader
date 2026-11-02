@@ -125,7 +125,10 @@
       "auth/too-many-requests": "Too many attempts. Wait a minute and try again.",
       "auth/user-disabled": "That account has been disabled.",
       "auth/network-request-failed": "Could not reach the network. Check your connection.",
-      "auth/operation-not-allowed": "Email sign-in is turned off for this project."
+      "auth/operation-not-allowed": "Email sign-in is turned off for this project.",
+      "auth/operation-not-supported-in-this-environment": "This browser/environment can't open the Google popup. Try another browser.",
+      "auth/popup-closed-by-user": "Sign-in cancelled.",
+      "auth/cancelled-popup-request": "Sign-in cancelled."
     };
     return map[code] || (err && err.message) || "Sign-in failed.";
   }
@@ -134,7 +137,7 @@
     event.preventDefault();
     var email = $("#login-email").value.trim();
     var password = $("#login-password").value;
-    if (!email || !password) { showLogin("Enter an email and a password."); return; }
+    if (!email || !password) { showLogin("Enter an email and a password, or use Google sign-in below."); return; }
     loginButton.disabled = true;
     loginButton.textContent = "Signing in…";
     loginMsg.textContent = "";
@@ -144,7 +147,24 @@
       showLogin(friendlyAuthError(err));
     }).then(function () {
       loginButton.disabled = false;
-      loginButton.textContent = "Sign in";
+      loginButton.textContent = "Sign in with email";
+    });
+  });
+
+  // Google sign-in (all existing accounts use Google).
+  var googleBtn = $("#google-btn");
+  googleBtn.addEventListener("click", function () {
+    loginMsg.textContent = "";
+    var provider = new firebase.auth.GoogleAuthProvider();
+    googleBtn.disabled = true;
+    googleBtn.textContent = "Opening…";
+    auth.signInWithPopup(provider).then(function () {
+      // onAuthStateChanged takes over from here.
+    }).catch(function (err) {
+      showLogin(friendlyAuthError(err));
+    }).then(function () {
+      googleBtn.disabled = false;
+      googleBtn.textContent = "Continue with Google";
     });
   });
 
