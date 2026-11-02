@@ -1,0 +1,303 @@
+# DEVELOPER SETUP AND DEPLOYMENT
+
+This document is for a developer setting this repo up from scratch (or restoring
+it to a working state). It describes how the desktop app runs, how the hosted
+admin/dashboard and app Google sign-in work, what Firebase/GitHub config is
+needed, and how to build/update/deploy.
+
+> For the product README see [`README.md`](README.md). For a one-line checklist
+> of what to do now see [`WHAT-YOU-NEED-TO-DO.md`](WHAT-YOU-NEED-TO-DO.md).
+
+## 1. Repository layout
+
+| Path | Purpose |
+|---|---|
+| `app/` | Python backend (HTTP server, API, downloader, DB, cloud/telemetry, updater). |
+| `web/` | Static frontend for the desktop app (served by `app.server` from `web_dir()`). |
+| `admin/` | Firebase Hosting site: owner dashboard + `login.html` for Google handoff. |
+| `scripts/` | Helper scripts (e.g. `scripts/make_menubar_app.sh`). |
+| `Contents/`, `Info.plist`, `AppIcon.icns` | macOS app bundle assets shipped in this repo for packaging. |
+| `cloud_config.json` | Firebase project config read by `app.cloud` (safe to ship; web API key is public). |
+| `firebase.json`, `.firebaserc`, `firestore.rules` | Firebase Hosting/Firestore rules. |
+| `requirements.txt` | Python deps for the app. |
+
+`app.bak/` is a backup copy checked into the repo (not imported). `app/__pycache__/`
+should not be committed — `.gitignore` is updated to ignore it and `.firebase/`.
+
+## 2. Local development (source)
+
+### Prerequisites
+- Python 3.10+ (tested on 3.14 locally)
+- `yt-dlp`, `ffmpeg` for downloads (the app warns if missing)
+- Optional: Firebase CLI (`firebase`) for hosting/rules, `gh` for releases
+
+### Install deps
+```sh
+python -m pip install -r requirements.txt
+```
+
+`requirements.txt`:
+```text
+yt-dlp
+mutagen
+rapidfuzz
+yt-dlp-ejs
+```
+
+### Run the app
+```sh
+python -m app.server            # opens http://127.0.0.1:8765/
+# or
+python -m app.server --port 9000 --no-browser
+# or
+python -m app                  # same as app.server.main
+```
+
+Behavior (see `app/server.py`):
+- Binds to `127.0.0.1` only by default, finds a free port if `8765` taken.
+- Uses a single-instance mutex (`app/instance.py`) so a second launch focuses
+  the running instance.
+- Runs a background worker/manager, serves `web/` as static files, and exposes
+  the JSON API under `/api/...` via `app/api.py`.
+- On quit, stops manager/telemetry, shuts down the server cleanly.
+
+### Data paths
+`app/paths.py`:
+- `app_root()` — repo root when running from source (`Path(__file__).parent.parent`)
+- `data_dir()` — per-user: macOS `~/Library/Application Support/PlaylistDownloader`,
+  Windows `%APPDATA%\\PlaylistDownloader`, Linux `~/.config/PlaylistDownloader`
+  (override with `PLAYLIST_DOWNLOADER_HOME`)
+- Writes: `config.json`, `queue.db` (SQLite), `download-archive.txt`,
+  `cloud_session.json`, logs in `data_dir()`
+
+### Config
+`app/config.py` defaults: `download_dir` defaults to `~/Downloads/Playlist Downloader`
+(macOS/Linux logic in `paths.default_download_dir()`), `update_repo` defaults to
+`brianbcyang27-prog/playlist-downloader`, `audio_format`/`video_format`/qualities,
+`yt_cookies_browser`, etc. Config is loaded/saved to `data_dir()/config.json`.
+
+## 3. Cloud accounts, telemetry, and auth (app side)
+
+Configured via `cloud_config.json` (loaded by `app.cloud.load_config()`, env
+`PLAYLIST_DOWNLOADER_CLOUD` takes precedence).
+
+Current `cloud_config.json`:
+```json
+{
+  "api_key": "AIzaSyCSCx1rMiR2bQKFH6PXwGRLUxg0__pkmdo",
+  "project_id": "playlist-downloader-99ad0",
+  "auth_domain": "playlist-downloader-99ad0.firebaseapp.com",
+  "login_url": "https://playlist-downloader-99ad0.web.app/login.html",
+  "admin_email": "brian.bcyang27@gmail.com",
+  "enabled": true
+}
+```
+
+Notes:
+- The **Firebase web API key is public by design**. Security is enforced by
+  Firebase Auth + Firestore rules, not by hiding this key.
+- `app/cloud.py` talks to Firebase REST APIs (Identity Toolkit, Firestore) with
+  stdlib `urllib`. It stores the refresh token in `cloud_session.json` with
+  `0600` permissions.
+- `app/telemetry.py` listens to events on `app.events` and writes documents to
+  Firestore collections `downloads` and `errors` (see Firestore rules). It never
+  blocks downloads; full queue is dropped if backing up.
+- Google sign-in in the desktop app uses the **browser handoff flow** (see below).
+- `app/api.py` enforces auth on API calls if cloud is enabled and a session is
+  required.
+
+## 4. Firebase project setup (playlist-downloader-99ad0)
+
+Project: `playlist-downloader-99ad0` (Firebase web app `1:800139508246:web:5032688053764cd0871337`).
+
+### Authentication
+- Email/password enabled
+- Google provider enabled (client ID/secret configured)
+- Authorized domains include: `localhost`, `playlist-downloader-99ad0.firebaseapp.com`,
+  `playlist-downloader-99ad0.web.app`
+- Users (as of last check): `brian.bcyang27@gmail.com` (Google, verified, owner),
+  `stonytonybb@gmail.com` (Google), `ohnapek@gmail.com` (Google). None have
+  password providers attached.
+
+### Firestore
+Database in Native mode. Collections written by the app:
+- `downloads` — one document per playlist download/run (fields like `uid`,
+  `user_email`, `playlist`, `platform`, `link`, `tracks_total/done/failed/skipped`,
+  `status`, `started_at`, `finished_at`, `duration_s`, `os`, `app_version`,
+  `sample_tracks`). See `app/telemetry.py`.
+- `errors` — failures/errors worth reporting (e.g. `auth_failed` can be created
+  anonymously with tight constraints; others require auth). `notified` is used
+  by the dashboard.
+
+Rules are in `firestore.rules` (deployed). Key points:
+- Owner is `brian.bcyang27@gmail.com` (email match). Can read all `downloads`
+  and `errors`, can update `errors` (mark reviewed), can update/delete as
+  allowed.
+- A signed-in user can create/update their own `downloads` documents (must
+  match `request.auth.uid` and email).
+- `errors` allow anonymous create only when `kind == 'auth_failed'`, not
+  notified, message/email length-capped; otherwise require ownership.
+- No client deletes.
+
+Deploy rules:
+```sh
+firebase deploy --only firestore:rules --project playlist-downloader-99ad0
+```
+
+### Firebase Hosting
+Hosts the admin dashboard and the app Google login page:
+- Site: `playlist-downloader-99ad0.web.app` / `playlist-downloader-99ad0.firebaseapp.com`
+- Public dir: `admin/` (see `firebase.json`)
+- Files: `admin/index.html`, `admin/admin.js`, `admin/login.html`
+- Cache headers set to `no-cache` for `.html` and `.js`
+
+Deploy hosting:
+```sh
+firebase deploy --only hosting --project playlist-downloader-99ad0
+```
+
+Firebase CLI auth: logged in as `brian.bcyang27@gmail.com` (config in
+`~/.config/configstore/firebase-tools.json` in this environment).
+
+## 5. Admin dashboard
+
+URL: **https://playlist-downloader-99ad0.web.app**
+
+### Login
+- **Continue with Google** — use `brian.bcyang27@gmail.com`. All existing
+  accounts use Google, so email/password usually won't work unless a password
+  was added.
+- **Sign in with email** — fallback if the account has a password provider.
+- The page checks auth state, signs out anyone who is not the owner
+  (`ADMIN_EMAIL` in `admin/admin.js`), and refuses to load data.
+- Uses Firebase compat SDK (app/auth/firestore).
+
+### Features
+- Overview: totals, status breakdown, tracks downloaded, user count, unread
+  errors, recent downloads/errors.
+- Downloads: filter by search/status/platform, expandable row (link, UID,
+  timings, sample tracks), CSV export.
+- Errors: filter unread/reviewed, mark reviewed (single/bulk), CSV export
+  (formula injection guarded).
+- Users: aggregated from downloads (runs, tracks, platforms, OS, last activity).
+- Auto-refresh every 60s when tab visible.
+
+### Safety
+- Links use `safeUrl()` (only `http(s)://`).
+- CSV cells escaping formulas (`= + - @` prefixed with `'`).
+- Reads only; errors marked reviewed update `notified: true` (owner can do this
+  per rules).
+
+## 6. App Google sign-in (browser handoff)
+
+Flow (desktop app):
+1. User clicks **Sign in with Google** in the app UI (`web/auth.js` calls
+   `/api/auth/google`).
+2. `app/api.py:_api_auth_google()` creates a short-lived `state`, builds
+   `login_url + ?port=<loopback>&state=<state>`, opens browser via
+   `app.server.open_browser()`.
+3. Browser opens **https://playlist-downloader-99ad0.web.app/login.html**
+   (`admin/login.html`). User clicks **Continue with Google**, signs in with
+   Firebase popup, gets `id_token` + `refresh_token`, redirects to
+   `http://127.0.0.1:<port>/auth/handoff#<params>` (fragment, never sent to server).
+4. `app/server.py` serves `/auth/handoff` as `web/handoff.html` (static). That
+   page POSTs tokens to `/api/auth/handoff`.
+5. `app/api.py:_api_auth_handoff()` validates `state` (consumed, expires after
+   900s), calls `app.cloud.adopt_tokens()`, stores session in
+   `cloud_session.json`, returns auth state. UI polls `/api/auth/state` until
+   signed in.
+6. If `login_url` missing/unconfigured, the endpoint returns 501.
+
+If Google sign-in fails in popup with `auth/unauthorized-domain`, add the domain
+to Firebase Auth → Settings → Authorized domains.
+
+## 7. Updates / releases
+
+`app/updater.py`:
+- Checks `https://api.github.com/repos/<repo>/releases/latest` (repo from config
+  `update_repo`, default `brianbcyang27-prog/playlist-downloader`).
+- Downloads from allowlisted GitHub hosts only (HTTPS). Asset names match
+  `.github/workflows/release.yml`:
+  - `PlaylistDownloader-<version>-windows-x64.exe` (Windows portable)
+  - `PlaylistDownloader-<version>-macos.zip` (zipped .app for updates)
+  - `Playlist Downloader <version>.dmg` (macOS human download)
+- Self-replace requires a frozen build; from source `install()` refuses and
+  points to release page.
+- Windows applies update via `--apply-update` in `app/__main__.py`.
+
+GitHub repo owner/account is currently suspended (`brianbcyangmusic-pixel` used in
+some history; defaults and live data point to `brianbcyang27-prog/`), so pushing
+may fail until resolved. The updater will still work if releases exist on the
+configured repo.
+
+## 8. Packaging / building
+
+### macOS (.app)
+`scripts/make_menubar_app.sh`:
+```sh
+bash scripts/make_menubar_app.sh
+```
+Builds `build_app/Playlist Downloader.app` by copying `app/` and `web/` to
+`Contents/Resources/`, writes a launcher that sets `PYTHONPATH` and runs
+`python3 -u -m app.server`, creates `Info.plist` with `LSUIElement` true
+(menu bar style), writes `PkgInfo`. Requires Python/yt-dlp/ffmpeg in PATH or
+installed. The repo already contains a built `Contents/` tree in some states.
+
+The launcher expects Python at `/opt/homebrew/bin/python3` or `/usr/local/bin/python3`
+(or system `python3`).
+
+### Windows
+Updater expects a single portable `.exe`. Build process not documented in scripts
+but asset naming and update logic are present.
+
+## 9. Environment / gotchas
+
+- **Single instance**: second launch opens the existing browser tab.
+- **Auth gate**: if cloud enabled and not signed in, the web UI shows the auth
+  gate (`web/auth.js`). API calls return 401 and trigger re-auth.
+- **Telemetry is best-effort**: network failures never block downloads.
+- **Google popup blocked**: admin/login pages use `signInWithPopup`; if blocked,
+  try a different browser or allow popups.
+- **Old GitHub Pages copies**: `docs/` and the duplicate root `index.html` were
+  removed; the only hosted site is Firebase Hosting. A stale GitHub Pages deploy
+  may still serve the old Tank Battle Arena page until the account is restored
+  and Pages is disabled/updated.
+- **CORS**: app serves everything on localhost; Firebase REST calls go direct.
+- **.gitignore** now ignores `__pycache__/`, `.firebase/`, `firebase-debug.log`,
+  `*.local`, `node_modules/`.
+
+## 10. Quick verification checklist (dev)
+
+- [ ] `python -m pip install -r requirements.txt`
+- [ ] `python -m app.server --no-browser` starts, banner shows URL and tool status
+- [ ] Open UI, add a playlist (if tools present) and test download flow
+- [ ] `firebase login:list` shows `brian.bcyang27@gmail.com`
+- [ ] `firebase deploy --only hosting --project playlist-downloader-99ad0` succeeds
+- [ ] `https://playlist-downloader-99ad0.web.app` loads, Google sign-in as owner works
+- [ ] Desktop app Google sign-in opens the hosted login page and completes handoff
+- [ ] Firestore has `downloads`/`errors` populated by a signed-in run
+- [ ] Owner can read them in dashboard; non-owner cannot
+
+## 11. Files to touch for common changes
+
+| Change | Files |
+|---|---|
+| Add API endpoint | `app/api.py` (add route in handler + method) |
+| Change telemetry fields | `app/telemetry.py`, check Firestore rules allow new fields |
+| Update default repo/version | `app/__init__.py` (`__version__`), `app/updater.py` (`REPO_DEFAULT`) |
+| Change dashboard UI | `admin/index.html`, `admin/admin.js`, redeploy hosting |
+| Change app UI | `web/*`, restarts pick up files from `web_dir()` |
+| Change auth flow | `app/cloud.py`, `app/api.py`, `web/auth.js`, `admin/login.html` |
+| Change Firebase config | `cloud_config.json` (and copy to `Contents/Resources/` if shipping bundle) |
+| Change security rules | `firestore.rules`, deploy with `firebase deploy --only firestore:rules` |
+
+## 12. Current state (for context)
+
+- Firebase Hosting deployed with Google sign-in on dashboard and app login page
+- Owner: `brian.bcyang27@gmail.com` (Google)
+- `login_url` points to the Firebase Hosting login page
+- Tank Battle Arena files and the duplicate GitHub Pages copies (`docs/`,
+  root `index.html`) were removed; `admin/` is the only hosted site
+- Git history has local commits, but `git push` is blocked by the GitHub account
+  suspension on `brianbcyangmusic-pixel`
+- Firestore has real data (`downloads` / `errors`) visible to the owner

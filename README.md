@@ -2,8 +2,8 @@
 
 A modern desktop app to download playlists from YouTube, YouTube Music, and Spotify as MP3/MP4.
 
-> **Start here:** [WHAT-YOU-NEED-TO-DO.md](WHAT-YOU-NEED-TO-DO.md) — your login
-> account, the dashboard URL, and the GitHub push that is currently blocked.
+> **Developers:** [DEVELOPER.md](DEVELOPER.md) explains the full setup —
+> Firebase project, Auth/Firestore, hosting, build, and release process.
 
 ## Features
 - Download playlists from YouTube Music, YouTube, and Spotify
