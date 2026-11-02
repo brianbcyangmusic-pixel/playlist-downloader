@@ -55,8 +55,9 @@ python -m app                  # same as app.server.main
 
 Behavior (see `app/server.py`):
 - Binds to `127.0.0.1` only by default, finds a free port if `8765` taken.
-- Uses a single-instance mutex (`app/instance.py`) so a second launch focuses
-  the running instance.
+- Single-instance guard (`app/instance.py`) only applies to the **packaged Windows
+  build** (named mutex). Running `python -m app.server` alongside an installed
+  copy is allowed and is the normal dev workflow.
 - Runs a background worker/manager, serves `web/` as static files, and exposes
   the JSON API under `/api/...` via `app/api.py`.
 - On quit, stops manager/telemetry, shuts down the server cleanly.
@@ -143,6 +144,43 @@ Deploy rules:
 ```sh
 firebase deploy --only firestore:rules --project playlist-downloader-99ad0
 ```
+
+### Recreating the Firebase project from scratch
+
+Only needed if the project is lost or you are standing up a second environment.
+
+1. `firebase login` (as the project owner), then `firebase projects:create <id>`.
+2. Firebase Console → **Add app → Web**; copy `apiKey`, `appId`, `authDomain`,
+   `projectId`, `messagingSenderId` into `cloud_config.json` (keep the same key
+   names) and into the `CONFIG` objects in `admin/admin.js` and
+   `admin/login.html`.
+3. **Authentication → Sign-in method**: enable *Email/Password* and *Google*
+   (Google needs an OAuth client; the console creates/links one automatically).
+4. **Authentication → Settings → Authorized domains**: add `localhost`,
+   `<project>.firebaseapp.com`, `<project>.web.app`, and any custom domain.
+5. **Firestore Database → Create database** in Native mode, then
+   `firebase deploy --only firestore:rules`.
+6. Edit `firestore.rules` so `owner()` matches the intended owner email, deploy
+   again, and set the same address as `admin_email` in `cloud_config.json` and
+   `ADMIN_EMAIL` in `admin/admin.js`.
+7. Create the owner account (sign up in the app, Google or email/password).
+   The first account must use the owner email if you want it to read the
+   dashboard.
+8. Create the Firebase Hosting site (default site is automatic), then
+   `firebase deploy --only hosting`.
+9. Put the hosting login URL into `cloud_config.json` as `login_url`
+   (`https://<project>.web.app/login.html`).
+10. Run the app, sign in, download one playlist, and confirm documents appear
+    in `downloads`/`errors` and render in the dashboard.
+
+### Adding or changing an admin
+
+Two places must agree, or the page loads but Firestore refuses the read:
+- `admin/admin.js` → `ADMIN_EMAIL`
+- `firestore.rules` → `owner()` email
+
+Deploy both (hosting + rules). Adding multiple admins means changing `owner()` to
+`request.auth.token.email in ['a@x', 'b@y']`.
 
 ### Firebase Hosting
 Hosts the admin dashboard and the app Google login page:
