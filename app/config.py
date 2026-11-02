@@ -43,7 +43,7 @@ DEFAULTS: dict[str, Any] = {
 
     # ---- Updates ----
     "auto_check_updates": True,       # look for a newer release at launch
-    "update_repo": "brianbcyang27-prog/playlist-downloader",
+    "update_repo": "brianbcyangmusic-pixel/playlist-downloader",
     "update_last_check": 0,           # unix time of the last successful check
 
     # ---- Performance / stability ----
@@ -83,6 +83,10 @@ DEFAULTS: dict[str, Any] = {
     "ytdlp_path": "",                 # blank = use bundled python package
     "js_runtimes": [],                # blank = auto-detect (deno/node/bun/quickjs)
 }
+
+# The update repo this app used before the GitHub account changed. Stored
+# configs from that era are migrated to DEFAULTS["update_repo"] on load.
+_RETIRED_REPO = "brianbcyang27-prog/playlist-downloader"
 
 # Keys that must never be wiped by a partial settings update
 _ENUMS = {
@@ -138,6 +142,10 @@ class Config:
                 value = str(value).lower()
                 if value not in _ENUMS[key]:
                     continue
+            if key == "update_repo" and value == _RETIRED_REPO:
+                # Repos move; an old default would make update checks point at
+                # a project that no longer exists.
+                value = DEFAULTS["update_repo"]
             if key == "audio_quality":
                 value = str(value)
                 if value not in _AUDIO_QUALITIES:

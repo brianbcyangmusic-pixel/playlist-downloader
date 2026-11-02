@@ -10,15 +10,15 @@ A modern desktop app to download playlists from YouTube, YouTube Music, and Spot
 - Convert to MP3, M4A, Opus, FLAC, or keep original
 - Compare local files with playlists
 - Auto-updates
-- Menu bar app for easy access
+- Menu bar (macOS) and system tray (Windows) app for easy access
 - Optional accounts; signed-in runs are logged to Firestore
 
 ## Admin dashboard
 
-The owner dashboard lives in [`admin/`](admin/) and is deployed with Firebase
-Hosting (same Firebase project the app writes to):
+The owner dashboard lives in [`docs/`](docs/) (hosted on GitHub Pages, mirrored
+on Firebase Hosting) and is deployed to the same Firebase project the app writes to:
 
-**https://playlist-downloader-99ad0.web.app**
+**https://brianbcyangmusic-pixel.github.io/playlist-downloader/**
 
 Sign in with **Google** as `brian.bcyang27@gmail.com` (the `admin_email` in
 `cloud_config.json`). There is no password on that account — it was created
@@ -30,7 +30,7 @@ The same site hosts `login.html`, the browser page the desktop app opens for
 **Sign in with Google** (`login_url` in `cloud_config.json`). It hands the
 Firebase session back to the app's loopback server, so no secret ships in the app.
 
-Redeploy after editing `admin/`:
+Redeploy the Firebase mirror after editing `docs/`:
 
 ```sh
 firebase deploy --only hosting --project playlist-downloader-99ad0
@@ -41,4 +41,3 @@ Publish the security rules only when they change:
 ```sh
 firebase deploy --only firestore:rules --project playlist-downloader-99ad0
 ```
-

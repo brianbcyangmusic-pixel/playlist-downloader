@@ -7,3 +7,12 @@ firebase-debug.log
 firebase-debug.*.log
 *.local
 node_modules/
+
+# Build artifacts
+.venv/
+.venv-win/
+build/
+dist/
+*.app
+launcher/windows/bin/
+launcher/windows/obj/

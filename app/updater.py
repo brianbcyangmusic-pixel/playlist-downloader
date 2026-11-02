@@ -39,7 +39,7 @@ from urllib.parse import urlsplit
 
 from . import __version__, paths
 
-REPO_DEFAULT = "brianbcyang27-prog/playlist-downloader"
+REPO_DEFAULT = "brianbcyangmusic-pixel/playlist-downloader"
 _UA = f"PlaylistDownloader/{__version__} (+https://github.com/{REPO_DEFAULT})"
 
 # Update payloads only ever come from a GitHub release. The URL is read out of
