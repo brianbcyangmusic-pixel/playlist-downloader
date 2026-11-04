@@ -105,9 +105,9 @@ def main(argv: list[str] | None = None) -> int:
             open_browser(url)
         return 0
 
-    # Only the copy that owns the mutex cleans up. A second launch can start
-    # while the first is still writing a downloaded update beside the app, and
-    # a sweep from that second launch would delete the download mid-flight.
+    # Only the copy that owns the instance lock cleans up. A second launch can
+    # start while the first is still unpacking an update beside the app, and a
+    # sweep from that second launch would delete it mid-flight.
     updater.cleanup_stale_update()
 
     # Managed tools (Windows) must be on PATH before anything looks them up.

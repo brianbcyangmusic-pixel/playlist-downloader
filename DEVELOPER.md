@@ -301,12 +301,20 @@ The GitHub Actions workflow does this automatically on tag push.
 - Checks `https://api.github.com/repos/<repo>/releases/latest` (repo from config
   `update_repo`, default `brianbcyangmusic-pixel/playlist-downloader`).
 - Downloads from allowlisted GitHub hosts only (HTTPS). Asset selection:
-  - macOS: `.zip` asset whose name contains `macos` (the zipped `.app`)
-  - Windows: `.exe` asset whose name contains `windows` (portable, if present)
-- Self-replace requires a frozen build; from source `install()` refuses and
+  - macOS: `PlaylistDownloader-macOS.zip` (the zipped menu bar `.app`)
+  - Windows: `PlaylistDownloader-Windows-x64.zip` (tray exe + `backend\` folder)
+- Install replaces the **whole app**, not just the backend: the backend
+  downloads and unpacks the zip (`ditto` on macOS, which keeps executable bits
+  and symlinks), starts a detached helper (`/bin/sh` on macOS, PowerShell on
+  Windows), and exits. The helper waits for it, quits the menu bar / tray app,
+  swaps the bundle or folder by rename (restoring the old one on failure) and
+  starts the new launcher. Progress goes to `update.log` in the data folder.
+- Only the installed app can self-update (`install_root()`); from source the UI
   points to the release page.
-- Windows applies update via `--apply-update` in `app/__main__.py`.
-- `__version__` in `app/__init__.py` (currently `1.5.0`) drives the comparison.
+- `__version__` in `app/__init__.py` drives the comparison. **Bump it before
+  tagging** — the builds read it, and a release whose app reports an older
+  version will offer itself as an update forever.
+- Tests: `python -m unittest discover tests`.
 
 The GitHub repo is `brianbcyangmusic-pixel/playlist-downloader`. Releases are
 published by `.github/workflows/build-apps.yml` on tag push (`v*`).

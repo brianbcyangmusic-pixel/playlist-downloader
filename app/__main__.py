@@ -40,14 +40,6 @@ def _bind_std_streams() -> None:
 
 _bind_std_streams()
 
-from app import updater  # noqa: E402  (must follow the stream guard)
-
-# Windows self-update: the freshly downloaded exe runs with --apply-update and
-# swaps itself over the old build before any server work happens.
-_apply = updater.apply_update(sys.argv[1:])
-if _apply is not None:
-    raise SystemExit(_apply)
-
 from app.server import main  # noqa: E402  (must follow the stream guard)
 
 if __name__ == "__main__":

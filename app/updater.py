@@ -7,14 +7,13 @@ matching asset and swaps it in place, then relaunches.
 Nothing here runs by itself: `check()` is a plain HTTPS GET, and `install()`
 only acts when the UI explicitly calls it.
 
-Asset names are produced by `.github/workflows/release.yml`:
+Asset names are produced by `.github/workflows/build-apps.yml`:
 
-    PlaylistDownloader-<version>-windows-x64.exe    Windows, single portable exe
-    PlaylistDownloader-<version>-macos.zip          macOS, zipped .app (for updates)
-    Playlist Downloader <version>.dmg               macOS, for humans
+    PlaylistDownloader-Windows-x64.zip    tray app + frozen backend folder
+    PlaylistDownloader-macOS.zip          zipped menu bar .app with the backend inside
 
-A frozen build is required to self-replace; from a source checkout `install()`
-refuses and points at the release page instead.
+Only the installed app can replace itself; from a source checkout `install()`
+refuses and the UI points at the release page instead.
 """
 
 from __future__ import annotations
@@ -117,9 +116,7 @@ def _opener(proxy: str | None):
 
 
 def _asset_suffixes() -> tuple[str, ...]:
-    if sys.platform.startswith("win"):
-        return (".exe",)
-    if sys.platform == "darwin":
+    if sys.platform.startswith("win") or sys.platform == "darwin":
         return (".zip",)
     return ()
 
@@ -247,84 +244,62 @@ def download(url: str, destination: Path, cfg, progress: Progress | None = None,
 # ---------------------------------------------------------------------------
 # Installing
 # ---------------------------------------------------------------------------
+#
+# Both releases are a zip of the whole app, and both run as a small launcher
+# (Swift menu bar app / .NET tray app) that starts this backend as a child:
+#
+#   macOS    Playlist Downloader.app/Contents/{MacOS/PlaylistDownloader, Resources/backend/…}
+#   Windows  <folder>/{PlaylistDownloader.exe, backend/PlaylistDownloaderBackend.exe, …}
+#
+# An update therefore replaces the *whole* app, not just this process: the
+# backend downloads and unpacks the new build, starts a detached helper, and
+# exits. The helper waits for the backend to go, quits the launcher, swaps the
+# app in one rename (keeping the old copy until the new one is in place), and
+# starts the new launcher.
+
+MAC_LAUNCHER = "Contents/MacOS/PlaylistDownloader"
+WIN_LAUNCHER = "PlaylistDownloader.exe"
+WIN_BACKEND = "backend/PlaylistDownloaderBackend.exe"
+MIN_ASSET_BYTES = 1_000_000
+HELPER_GRACE_SECONDS = 1.0
+
+_PYI_ENV_PREFIXES = ("_PYI_", "PYINSTALLER_")
+_PYI_ENV_NAMES = {"_MEIPASS2"}
+
 
 def current_app_bundle() -> Path | None:
-    """The `.app` this process is running inside, if any.
-
-    Note the macOS build is *not* a PyInstaller freeze: it ships a real CPython
-    inside ``Contents/Resources``. So the bundle is found by walking up from the
-    interpreter, not by asking whether we are frozen.
-    """
+    """The `.app` this process is running inside, if any."""
     for parent in Path(sys.executable).resolve().parents:
         if parent.suffix == ".app":
             return parent
     return None
 
 
+def install_root() -> Path | None:
+    """The folder or bundle an update replaces, or None for a source checkout."""
+    if sys.platform == "darwin":
+        bundle = current_app_bundle()
+        return bundle if bundle and (bundle / MAC_LAUNCHER).is_file() else None
+    if sys.platform.startswith("win") and paths.is_frozen():
+        exe = Path(sys.executable).resolve()
+        root = exe.parent.parent
+        if exe.parent.name.lower() == "backend" and (root / WIN_LAUNCHER).is_file():
+            return root
+    return None
+
+
 def can_self_update() -> bool:
     """Whether this copy of the app can replace itself in place."""
-    if sys.platform.startswith("win"):
-        return paths.is_frozen()
-    if sys.platform == "darwin":
-        return current_app_bundle() is not None
-    return False
-
-
-def _tail(path: Path, lines: int = 40) -> str:
-    try:
-        return "\n".join(path.read_text("utf-8", "replace").splitlines()[-lines:])
-    except OSError:
-        return ""
-
-
-_MAC_HELPER = """#!/bin/sh
-# Written by Playlist Downloader's updater. Waits for the old app to exit, then
-# swaps the bundle and reopens it.
-set -u
-WATCH_PID="$1"; NEW_APP="$2"; DEST_APP="$3"; LOG="$4"
-
-i=0
-while [ "$i" -lt 240 ]; do
-  kill -0 "$WATCH_PID" 2>/dev/null || break
-  i=$((i + 1)); sleep 1
-done
-sleep 1
-
-STAGE="${DEST_APP}.incoming.$$"
-rm -rf "$STAGE"
-if /usr/bin/ditto "$NEW_APP" "$STAGE" >>"$LOG" 2>&1; then
-  rm -rf "$DEST_APP"
-  if mv "$STAGE" "$DEST_APP" >>"$LOG" 2>&1; then
-    /usr/bin/open "$DEST_APP" >>"$LOG" 2>&1
-    exit 0
-  fi
-fi
-rm -rf "$STAGE"
-echo "update failed, see $LOG" >>"$LOG"
-exit 1
-"""
-
-_WIN_HELPER = None  # replaced by the --apply-update mode below (no cmd.exe quoting traps)
-
-# Files the Windows updater creates next to the app. Everything with this prefix
-# is ours, so it is safe to sweep away on the next launch.
-STAGED_EXE_PREFIX = "PlaylistDownloader-update"
-STAGED_EXE_NAME = STAGED_EXE_PREFIX + ".exe"  # name used by 1.4.x, still cleaned up
-_STAGE_SERIAL = 0
-
-_PYI_ENV_PREFIXES = ("_PYI_", "PYINSTALLER_")
-_PYI_ENV_NAMES = {"_MEIPASS2"}
+    return install_root() is not None
 
 
 def clean_child_environment(env: dict[str, str] | None = None) -> dict[str, str]:
-    """Environment for a newly spawned copy of the app.
+    """Environment for the update helper and the relaunched app.
 
-    PyInstaller's onefile bootloader hands its extraction directory down to
-    children through ``_PYI_*`` variables. The staged update exe and the
-    relaunched app are *new* top-level programs, not children of the archive
-    that is running now: if they inherit the old temp directory, the old
-    process deletes it on exit and the new one loses the DLLs it is running
-    from (it either dies immediately or never starts at all).
+    PyInstaller's bootloader passes ``_PYI_*`` variables down to children. The
+    relaunched app is a new top-level program, not a child of this one: if it
+    inherits them, its own frozen backend mistakes itself for a subprocess of
+    the old build and fails to start.
     """
     out = dict(os.environ if env is None else env)
     for key in list(out):
@@ -334,35 +309,12 @@ def clean_child_environment(env: dict[str, str] | None = None) -> dict[str, str]
     return out
 
 
-def staged_exe_path(destination: Path) -> Path:
-    """A download path that can never be the executable we are running from.
-
-    1.4.x always downloaded to ``PlaylistDownloader-update.exe``. That is fine
-    until the user starts that leftover file — it is a full copy of the app —
-    and then asks it to update: the destination is *itself*, and Windows
-    refuses to replace a running exe with "Access is denied". A unique name per
-    attempt removes that whole class of failure.
-    """
-    global _STAGE_SERIAL
-    destination = destination.resolve()
-    for _ in range(20):
-        _STAGE_SERIAL += 1
-        candidate = destination.with_name(
-            f"{STAGED_EXE_PREFIX}-{os.getpid()}-{_STAGE_SERIAL}.exe")
-        if candidate != destination and not candidate.exists():
-            return candidate
-        time.sleep(0.01)
-    # Practically unreachable: a running process cannot own every number.
-    return destination.with_name(
-        f"{STAGED_EXE_PREFIX}-{os.getpid()}-{time.time_ns()}.exe")
-
-
 def trusted_asset_url(url: str, cfg) -> bool:
     """True only for a release download belonging to this project.
 
     The install endpoint is reachable from any page in the browser (it is a
     plain localhost POST), so accepting an arbitrary address would let a
-    website make the app download and execute whatever it likes.
+    website make the app download and run whatever it likes.
 
     `download()` re-checks the host on every redirect hop, because this test
     only sees the URL the page supplied, not where GitHub sends us next.
@@ -376,96 +328,193 @@ def trusted_asset_url(url: str, cfg) -> bool:
     return str(url or "").startswith(prefix)
 
 
+_MAC_HELPER = """#!/bin/sh
+# Written by Playlist Downloader's updater. Waits for the backend to exit,
+# quits the menu bar app, swaps the bundle and reopens it.
+set -u
+BACKEND_PID="$1"; NEW_APP="$2"; DEST_APP="$3"; LOG="$4"
+note() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >>"$LOG"; }
+alive() { kill -0 "$1" 2>/dev/null; }
+wait_gone() {  # pid, half-seconds
+  i=0
+  while [ "$i" -lt "$2" ] && alive "$1"; do i=$((i + 1)); sleep 0.5; done
+  ! alive "$1"
+}
 
-def install(asset_url: str, cfg, progress: Progress | None = None) -> dict[str, Any]:
-    """Download and swap in the new build. Returns `{"ok": bool, ...}`."""
-    if not can_self_update():
-        return {"ok": False, "error": "Self-update only works in a packaged build."}
+note "update: waiting for backend $BACKEND_PID"
+wait_gone "$BACKEND_PID" 120 || { kill -TERM "$BACKEND_PID" 2>/dev/null; wait_gone "$BACKEND_PID" 20; }
 
-    if sys.platform.startswith("win"):
-        destination = Path(sys.executable).resolve()
-        asset_name = "update.exe"
-    elif sys.platform == "darwin":
-        destination = current_app_bundle()  # type: ignore[assignment]
-        asset_name = "update.zip"
-    else:
-        return {"ok": False, "error": "Self-update is not supported on this platform."}
+# The menu bar app does not quit when its backend does; quit every copy of it.
+for pid in $(/usr/bin/pgrep -x PlaylistDownloader); do
+  case "$(ps -o comm= -p "$pid" 2>/dev/null)" in
+    */Contents/MacOS/PlaylistDownloader)
+      note "update: quitting menu bar app $pid"
+      kill -TERM "$pid" 2>/dev/null
+      wait_gone "$pid" 20 || { kill -KILL "$pid" 2>/dev/null; wait_gone "$pid" 10; } ;;
+  esac
+done
+sleep 0.5
 
-    if destination is None:
-        return {"ok": False, "error": "Could not locate the installed app to replace."}
+STAGE="${DEST_APP}.incoming.$$"
+OLD="${DEST_APP}.old.$$"
+rm -rf "$STAGE"
+if ! /usr/bin/ditto "$NEW_APP" "$STAGE" >>"$LOG" 2>&1; then
+  note "update: could not copy the new app"; rm -rf "$STAGE"; /usr/bin/open "$DEST_APP"; exit 1
+fi
+if ! mv "$DEST_APP" "$OLD" >>"$LOG" 2>&1; then
+  note "update: could not move the old app aside"; rm -rf "$STAGE"; /usr/bin/open "$DEST_APP"; exit 1
+fi
+if ! mv "$STAGE" "$DEST_APP" >>"$LOG" 2>&1; then
+  note "update: could not move the new app in; restoring"; mv "$OLD" "$DEST_APP"; rm -rf "$STAGE"
+  /usr/bin/open "$DEST_APP"; exit 1
+fi
+rm -rf "$OLD"
+/usr/bin/xattr -dr com.apple.quarantine "$DEST_APP" 2>/dev/null
+note "update: installed, reopening $DEST_APP"
+/usr/bin/open "$DEST_APP" >>"$LOG" 2>&1
+exit 0
+"""
 
-    work = Path(tempfile.mkdtemp(prefix="pd-update-"))
-    log = paths.data_dir() / "update.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        if sys.platform.startswith("win"):
-            # Write the new build beside the old one and let *it* do the swap.
-            # That avoids running a .cmd through cmd.exe, whose quote handling
-            # mangles paths that contain spaces (very common under %TEMP%).
-            staged = staged_exe_path(destination)
-            if progress:
-                progress({"stage": "downloading", "received": 0, "total": 0})
-            download(asset_url, staged, cfg, progress)
-            size = staged.stat().st_size
-            if size < 1_000_000:
-                staged.unlink(missing_ok=True)
-                return {"ok": False,
-                        "error": "The downloaded update looks incomplete. Try again."}
-            if progress:
-                progress({"stage": "preparing", "received": size, "total": size})
-            helper = subprocess.Popen(
-                [str(staged), "--apply-update", str(destination), str(os.getpid())],
-                cwd=str(destination.parent),
-                close_fds=True,
-                env=clean_child_environment(),
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-            # The helper cannot finish while this process is alive (it waits
-            # for our pid), so an immediate exit here means it never started.
-            time.sleep(1.0)
-            code = helper.poll()
-            if code not in (None, 0):
-                return {"ok": False,
-                        "error": f"The downloaded update could not start (exit {code}). "
-                                 f"See {log}."}
-            if progress:
-                progress({"stage": "restarting"})
-            return {"ok": True, "restarting": True, "log": str(log)}
+_WIN_HELPER = r"""# Written by Playlist Downloader's updater. Waits for the backend to exit,
+# quits the tray app, swaps the app folder and starts the new tray app.
+param([int]$BackendPid, [string]$Root, [string]$Stage, [string]$Log)
+$ErrorActionPreference = 'Continue'
+function Note($m) { Add-Content -LiteralPath $Log -Value ("{0} {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) }
+$Tray = Join-Path $Root 'PlaylistDownloader.exe'
 
-        if progress:
-            progress({"stage": "downloading", "received": 0, "total": 0})
-        payload = work / asset_name
-        download(asset_url, payload, cfg, progress)
-        if progress:
-            progress({"stage": "preparing", "received": payload.stat().st_size,
-                      "total": payload.stat().st_size})
+Note "update: waiting for backend $BackendPid"
+Wait-Process -Id $BackendPid -Timeout 60 -ErrorAction SilentlyContinue
 
-        with zipfile.ZipFile(payload) as archive:
-            archive.extractall(work / "unpacked")
-        bundles = sorted((work / "unpacked").rglob("*.app"))
-        if not bundles:
-            return {"ok": False, "error": "The update archive did not contain an app."}
-        new_app = bundles[0]
+# Quit the tray app and anything else still running from the app folder, so
+# no file in it is locked. Only processes whose image lives in $Root qualify.
+$prefix = $Root.TrimEnd('\') + '\'
+Get-Process -ErrorAction SilentlyContinue |
+  Where-Object { $_.Path -and $_.Path.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase) } |
+  ForEach-Object { Note "update: stopping $($_.Name) $($_.Id)"; Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue; Wait-Process -Id $_.Id -Timeout 10 -ErrorAction SilentlyContinue }
+
+$Old = "$Root.old-$PID"
+$moved = $false
+for ($i = 0; $i -lt 60 -and -not $moved; $i++) {
+  try { Move-Item -LiteralPath $Root -Destination $Old -ErrorAction Stop; $moved = $true }
+  catch { Start-Sleep -Milliseconds 500 }
+}
+if (-not $moved) {
+  Note "update: the app folder stayed locked; keeping the current version"
+  Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
+  Start-Process -FilePath $Tray; exit 1
+}
+try { Move-Item -LiteralPath $Stage -Destination $Root -ErrorAction Stop }
+catch {
+  Note "update: could not move the new app in ($_); restoring"
+  Move-Item -LiteralPath $Old -Destination $Root -ErrorAction SilentlyContinue
+  Start-Process -FilePath $Tray; exit 1
+}
+Note "update: installed, starting $Tray"
+Start-Process -FilePath $Tray -WorkingDirectory $Root
+Start-Sleep -Seconds 2
+Remove-Item -LiteralPath $Old -Recurse -Force -ErrorAction SilentlyContinue
+exit 0
+"""
+
+
+def _find_new_app(unpacked: Path) -> Path | None:
+    """Locate the app inside an unpacked release zip."""
+    if sys.platform == "darwin":
+        bundles = sorted(unpacked.glob("*.app")) or sorted(unpacked.glob("*/*.app"))
+        return next((b for b in bundles if os.access(b / MAC_LAUNCHER, os.X_OK)), None)
+    for folder in (unpacked, *sorted(p for p in unpacked.iterdir() if p.is_dir())):
+        if (folder / WIN_LAUNCHER).is_file() and (folder / WIN_BACKEND).is_file():
+            return folder
+    return None
+
+
+def _unpack(payload: Path, target: Path) -> None:
+    """Extract a release zip. macOS needs `ditto`: Python's zipfile drops the
+    executable bits and symlinks that an app bundle depends on."""
+    target.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "darwin":
+        subprocess.run(["/usr/bin/ditto", "-x", "-k", str(payload), str(target)],
+                       check=True, capture_output=True)
+        return
+    with zipfile.ZipFile(payload) as archive:
+        for member in archive.namelist():
+            resolved = (target / member).resolve()
+            if target.resolve() not in resolved.parents and resolved != target.resolve():
+                raise ValueError(f"Unsafe path in update archive: {member}")
+        archive.extractall(target)
+
+
+def _spawn_helper(root: Path, new_app: Path, work: Path, log: Path) -> subprocess.Popen:
+    env = clean_child_environment()
+    if sys.platform == "darwin":
         helper = work / "apply-update.sh"
         helper.write_text(_MAC_HELPER, encoding="utf-8")
         helper.chmod(helper.stat().st_mode | stat.S_IEXEC)
-        # Wait for the whole app (the Swift shell is our parent), not just this
-        # backend process, so the bundle is not swapped underneath it.
-        watch = os.getppid()
-        command = ["/bin/sh", str(helper), str(watch), str(new_app), str(destination), str(log)]
+        return subprocess.Popen(
+            ["/bin/sh", str(helper), str(os.getpid()), str(new_app), str(root), str(log)],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True, cwd=str(work), env=env)
+        return
+    helper = work / "apply-update.ps1"
+    helper.write_text(_WIN_HELPER, encoding="utf-8")
+    flags = (getattr(subprocess, "CREATE_NO_WINDOW", 0)
+             | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    return subprocess.Popen(
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-WindowStyle", "Hidden", "-File", str(helper),
+         "-BackendPid", str(os.getpid()), "-Root", str(root),
+         "-Stage", str(new_app), "-Log", str(log)],
+        cwd=str(work), env=env, close_fds=True, creationflags=flags,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True, cwd=str(work))
+
+def install(asset_url: str, cfg, progress: Progress | None = None) -> dict[str, Any]:
+    """Download and unpack the new build, then hand over to the swap helper.
+
+    Returns `{"ok": bool, ...}`. On success the caller must exit this process:
+    the helper waits for it before touching any file.
+    """
+    root = install_root()
+    if root is None:
+        return {"ok": False, "error": "Self-update only works in the installed app."}
+
+    log = paths.data_dir() / "update.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    # On Windows the new build is unpacked beside the app, so the final swap is
+    # a rename on one volume rather than a slow copy that could fail halfway.
+    work_parent = root.parent if sys.platform.startswith("win") else None
+    work = Path(tempfile.mkdtemp(prefix=".pd-update-", dir=work_parent))
+    try:
+        if progress:
+            progress({"stage": "downloading", "received": 0, "total": 0})
+        payload = download(asset_url, work / "update.zip", cfg, progress)
+        size = payload.stat().st_size
+        if size < MIN_ASSET_BYTES:
+            raise ValueError("The downloaded update looks incomplete. Try again.")
+        if progress:
+            progress({"stage": "preparing", "received": size, "total": size})
+
+        _unpack(payload, work / "unpacked")
+        payload.unlink(missing_ok=True)
+        new_app = _find_new_app(work / "unpacked")
+        if new_app is None:
+            raise ValueError("The update archive did not contain the app.")
+
+        helper = _spawn_helper(root, new_app, work, log)
+        # The helper waits for this process, so it cannot have finished yet;
+        # an early exit means it never started and the app must keep running.
+        time.sleep(HELPER_GRACE_SECONDS)
+        if helper.poll() is not None:
+            raise RuntimeError(f"The update helper stopped early (exit {helper.returncode}). See {log}.")
         if progress:
             progress({"stage": "restarting"})
         return {"ok": True, "restarting": True, "log": str(log)}
     except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        shutil.rmtree(work, ignore_errors=True)
+        detail = exc.stderr.decode(errors="replace").strip() if isinstance(
+            exc, subprocess.CalledProcessError) and exc.stderr else str(exc)
+        return {"ok": False, "error": f"{type(exc).__name__}: {detail}"}
 
-
-# ---------------------------------------------------------------------------
-# Windows: second stage, run by the freshly downloaded exe
-# ---------------------------------------------------------------------------
 
 def pid_running(pid: int) -> bool:
     """True if `pid` is alive. (os.kill(pid, 0) would *kill* on Windows.)"""
@@ -500,163 +549,23 @@ def pid_running(pid: int) -> bool:
         return False
 
 
-def _wait_for_exit(pid: int, timeout: float) -> bool:
-    """Wait until `pid` is gone (or the timeout elapses)."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if not pid_running(pid):
-            return True
-        time.sleep(0.25)
-    return not pid_running(pid)
-
-
-def _replace_file(source: Path, target: Path, attempts: int = 240) -> tuple[bool, str]:
-    """Copy `source` beside `target`, then swap it in with an atomic rename.
-
-    Windows keeps the image of a running exe open, so a direct write fails with
-    a sharing violation until the last process started from it has exited. If
-    the copy itself were the target, a failure halfway through would leave a
-    truncated application behind; building it next to the target and renaming
-    means the old exe is either untouched or fully replaced, never half-written.
-    """
-    staging = target.with_name(f"{target.name}.new-{os.getpid()}")
-    expected = source.stat().st_size
-    last = "unknown error"
-    try:
-        for attempt in range(attempts):
-            try:
-                if not staging.exists():
-                    try:
-                        shutil.copy2(source, staging)
-                    except BaseException:
-                        # Never leave a truncated copy behind: the next attempt
-                        # would happily swap that half-written file in.
-                        staging.unlink(missing_ok=True)
-                        raise
-                if staging.stat().st_size != expected:
-                    staging.unlink(missing_ok=True)
-                    raise OSError("copy was incomplete")
-                os.replace(staging, target)
-                return True, f"attempt {attempt + 1}"
-            except OSError as exc:
-                last = str(exc)
-                time.sleep(0.25)
-        return False, last
-    finally:
-        try:
-            staging.unlink(missing_ok=True)
-        except OSError:
-            pass
-
-
-def apply_update(argv: list[str]) -> int | None:
-    """`--apply-update OLD_EXE PID` — swap ourselves over the old build, relaunch.
-
-    Returns None when the flag is absent (normal launch). This runs before the
-    server starts, so no port is bound and nothing is downloaded.
-    """
-    if "--apply-update" not in argv:
-        return None
-    index = argv.index("--apply-update")
-    try:
-        old_exe = Path(argv[index + 1]).resolve()
-        old_pid = int(argv[index + 2])
-    except (IndexError, ValueError):
-        return 2
-
-    log = paths.data_dir() / "update.log"
-    log.parent.mkdir(parents=True, exist_ok=True)
-
-    def note(message: str) -> None:
-        try:
-            with open(log, "a", encoding="utf-8") as handle:
-                handle.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
-        except OSError:
-            pass
-
-    note(f"apply-update: waiting for pid {old_pid} ({sys.executable} -> {old_exe})")
-    if not _wait_for_exit(old_pid, 300):
-        note("apply-update: the old app never exited; leaving it alone")
-        return 1
-    time.sleep(0.5)
-
-    ok, detail = _replace_file(Path(sys.executable).resolve(), old_exe)
-    if not ok:
-        note(f"apply-update: could not replace the app: {detail}")
-        return 1
-    note(f"apply-update: replaced {old_exe} ({detail})")
-
-    error = "unknown error"
-    for attempt in range(20):
-        try:
-            child = subprocess.Popen(
-                [str(old_exe)],
-                cwd=str(old_exe.parent),
-                close_fds=True,
-                env=clean_child_environment(),
-            )
-            note(f"apply-update: relaunched (pid {child.pid}, attempt {attempt + 1})")
-            time.sleep(1.5)
-            if child.poll() is not None:
-                # Exit 0 here means it found another copy already running,
-                # which is a perfectly fine outcome after an update.
-                note(f"apply-update: new app exited with {child.returncode}")
-            return 0
-        except OSError as exc:
-            error = str(exc)
-            time.sleep(0.5)
-    note(f"apply-update: relaunch failed: {error}")
-    return 1
-
-
-def _is_stale_update_file(path: Path, exe: Path) -> bool:
-    """Only ever touch files this updater creates, never anything else."""
-    try:
-        if path == exe or not path.is_file():
-            return False
-    except OSError:
-        return False
-    name = path.name
-    if name.startswith(exe.name + ".new-"):
-        return True
-    # Stage files are always "<prefix>.exe" (1.4.x) or "<prefix>-<pid>-<n>.exe"
-    # plus their ".part" downloads. Requiring the suffix keeps unrelated files
-    # that merely start with the same word out of scope.
-    return (
-        name.startswith(STAGED_EXE_PREFIX)
-        and (name.endswith(".exe") or name.endswith(".exe.part"))
-    )
-
-
 def cleanup_stale_update(background: bool = True) -> None:
-    """Remove leftovers from this and older self-updates.
-
-    A staged exe cannot delete itself, and the freshly relaunched app normally
-    starts *before* that helper has finished exiting, so the first attempt is
-    expected to fail. 1.4.x tried exactly once and gave up, which is why
-    `PlaylistDownloader-update.exe`, its `.part` and `.new-*` siblings were left
-    sitting next to the app forever. Retry in the background instead.
-    """
-    if not sys.platform.startswith("win") or not paths.is_frozen():
+    """Remove leftovers of an earlier update: the old copy the helper could not
+    delete yet, and unpacked downloads from an attempt that was abandoned."""
+    root = install_root()
+    if root is None:
         return
-    exe = Path(sys.executable).resolve()
-    folder = exe.parent
+    patterns = ((f"{root.name}.old-*", ".pd-update-*") if sys.platform.startswith("win")
+                else (f"{root.name}.old.*", f"{root.name}.incoming.*"))
 
     def sweep() -> None:
-        for _ in range(40):
-            leftovers = []
-            try:
-                leftovers = [p for p in folder.iterdir() if _is_stale_update_file(p, exe)]
-            except OSError:
-                return
+        for _ in range(20):
+            leftovers = [p for pattern in patterns for p in root.parent.glob(pattern)]
             if not leftovers:
                 return
             for path in leftovers:
-                try:
-                    path.unlink()
-                except OSError:
-                    pass  # still mapped by a helper that is exiting
-            time.sleep(0.5)
+                shutil.rmtree(path, ignore_errors=True)
+            time.sleep(1.5)
 
     if background:
         threading.Thread(target=sweep, daemon=True, name="update-cleanup").start()

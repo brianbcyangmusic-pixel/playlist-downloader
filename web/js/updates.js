@@ -1,7 +1,8 @@
 /* App updates: check, banner, release notes, install with restart overlay. */
 
 const MAX_NOTES = 6;
-const OVERLAY_STEPS = ["Downloading the latest version…", "Preparing installation…", "Swapping in the new version…", "Restarting…"];
+const RECONNECT_POLL_MS = 1500;
+const RECONNECT_TIMEOUT_MS = 180000;
 
 function parseChangelog(body) {
   if (!body) return [];
@@ -65,15 +66,26 @@ function openUpdateDialog() {
 }
 
 function showUpdateOverlay() {
-  const overlay = $("#update-overlay");
-  overlay.hidden = false;
-  let i = 0;
-  $("#update-overlay-msg").textContent = OVERLAY_STEPS[0];
-  const timer = setInterval(() => {
-    i = Math.min(i + 1, OVERLAY_STEPS.length - 1);
-    $("#update-overlay-msg").textContent = OVERLAY_STEPS[i];
-  }, 1800);
-  return () => { clearInterval(timer); overlay.hidden = true; };
+  $("#update-overlay-title").textContent = "Updating Playlist Downloader";
+  $("#update-overlay-msg").textContent = "Downloading the latest version…";
+  $("#update-overlay").hidden = false;
+  return () => { $("#update-overlay").hidden = true; };
+}
+
+/** After the app restarts, wait for the new version to answer, then reload. */
+async function reconnectAfterUpdate(fromVersion) {
+  const started = Date.now();
+  while (Date.now() - started < RECONNECT_TIMEOUT_MS) {
+    await new Promise(r => setTimeout(r, RECONNECT_POLL_MS));
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      const s = res.ok ? await res.json() : null;
+      if (s && s.version && s.version !== fromVersion) { location.reload(); return; }
+    } catch { /* still restarting */ }
+  }
+  $("#update-overlay-title").textContent = "Almost there";
+  $("#update-overlay-msg").textContent =
+    "The update is installed. If the app did not reopen, start Playlist Downloader again.";
 }
 
 async function startUpdate() {
@@ -88,6 +100,7 @@ async function startUpdate() {
   try {
     await api("/api/update/install", { method: "POST", body: { url: u.asset.url } });
     $("#update-banner").hidden = true;
+    reconnectAfterUpdate(u.current);
   } catch (e) {
     hideOverlay();
     toast("Update failed", e.message, "error");
@@ -102,8 +115,8 @@ function onUpdateProgress(d) {
   } else if (d.stage === "preparing") {
     msg.textContent = "Installing…";
   } else if (d.stage === "restarting") {
-    $("#update-overlay-title").textContent = "Update complete";
-    msg.textContent = "Restarting — this page reconnects by itself.";
+    $("#update-overlay-title").textContent = "Restarting";
+    msg.textContent = "Installing the new version — this page reloads by itself.";
   }
 }
 
