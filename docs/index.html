@@ -3,325 +3,448 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Playlist Downloader — download playlists as MP3/MP4</title>
-<meta name="description" content="A free desktop app to download playlists from YouTube, YouTube Music and Spotify as MP3, M4A, Opus, FLAC or MP4. macOS and Windows.">
+<meta name="color-scheme" content="light dark">
+<title>Playlist Downloader — whole playlists as MP3, M4A or MP4</title>
+<meta name="description" content="A free desktop app for macOS and Windows. Paste a YouTube, YouTube Music or Spotify playlist and get every track tagged, with cover art, as MP3, M4A, Opus, FLAC or MP4.">
 <meta name="robots" content="index, follow">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.apache.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬇</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff5a1f'/><path d='M16 8v12m-5-5 5 5 5-5M10 24h12' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <style>
+  /* Same "studio console" palette as the desktop app (web/styles.css). */
   :root {
-    --bg: #0b0d12;
-    --bg-elev: #151820;
-    --bg-elev2: #1c2029;
-    --border: #262b36;
-    --text: #e8ecf4;
-    --muted: #8b93a7;
-    --accent: #6ea8fe;
-    --accent-2: #8b7bff;
-    --ok: #3ddc97;
-    --warn: #ffb454;
-    --radius: 14px;
-    --max: 1080px;
+    --paper: #f3efe7; --surface: #fbf9f5; --surface-2: #efeae0; --sunken: #e8e2d6;
+    --line: #ddd5c6; --line-strong: #c9bfac;
+    --ink: #1d1a16; --ink-2: #4a443b; --muted: #80776a;
+    --signal: #ff5a1f; --signal-hover: #ec4a10; --signal-soft: #ffe3d6;
+    --ok: #2f9e6a; --ok-soft: #dcf1e5; --warn: #c98510; --warn-soft: #f8ecd2;
+    --bad: #d63c3c; --bad-soft: #f8dcd8; --run: #6a55e0; --run-soft: #e6e1fb; --skip: #9a9183;
+    --shadow-1: 0 1px 0 rgba(29,26,22,.04), 0 1px 3px rgba(29,26,22,.06);
+    --shadow-3: 0 40px 80px -24px rgba(29,26,22,.35), 0 12px 24px -12px rgba(29,26,22,.2);
+    --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --max: 1160px;
+    --ease: cubic-bezier(.16, 1, .3, 1);
   }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #13110f; --surface: #1b1916; --surface-2: #23201c; --sunken: #0f0e0c;
+      --line: #2f2b26; --line-strong: #423c35;
+      --ink: #f2ede4; --ink-2: #c9c1b4; --muted: #8d8478;
+      --signal: #ff6a33; --signal-hover: #ff8052; --signal-soft: #3a1f13;
+      --ok: #4cc58b; --ok-soft: #173126; --warn: #e5a53a; --warn-soft: #33270f;
+      --bad: #f06a5f; --bad-soft: #3a1a17; --run: #9a8bff; --run-soft: #241f45; --skip: #7d756a;
+      --shadow-1: 0 1px 0 rgba(0,0,0,.3);
+      --shadow-3: 0 40px 80px -24px rgba(0,0,0,.8);
+    }
+  }
+
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    background: radial-gradient(1200px 600px at 50% -10%, rgba(110,168,254,.18), transparent 60%),
-                radial-gradient(900px 500px at 90% 20%, rgba(139,123,255,.12), transparent 60%),
-                var(--bg);
-    color: var(--text);
-    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--font-ui); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
+  .eyebrow { margin: 0 0 12px; font: 600 12px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--signal); }
+  h1, h2, h3 { font-family: var(--font-display); margin: 0; }
+  h2 { font-size: clamp(28px, 2.4vw + 14px, 42px); font-weight: 750; letter-spacing: -.03em; line-height: 1.08; }
+  :focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 6px; }
 
-  /* ---------- nav ---------- */
-  nav {
-    position: sticky; top: 0; z-index: 10;
-    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    background: rgba(11,13,18,.7);
-    border-bottom: 1px solid rgba(255,255,255,.04);
-  }
-  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--text); }
-  .logo {
-    width: 34px; height: 34px; display: grid; place-items: center;
-    background: linear-gradient(140deg, var(--accent), var(--accent-2));
-    border-radius: 9px; font-size: 18px; color: #0b0d12;
-  }
-  .nav-links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
-  .nav-links a { color: var(--muted); }
-  .nav-links a:hover { color: var(--text); text-decoration: none; }
+  /* ---------------------------------------------------------------- nav */
+  .nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--paper) 82%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid transparent; transition: border-color .2s; }
+  .nav.scrolled { border-bottom-color: var(--line); }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 66px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 10px; font: 700 15px var(--font-display); text-decoration: none; letter-spacing: -.01em; }
+  .logo { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: var(--signal); color: #fff; box-shadow: inset 0 -2px 0 rgba(0,0,0,.15); }
+  .logo svg { width: 17px; height: 17px; stroke-width: 2.6; }
+  .nav-links { display: flex; align-items: center; gap: 26px; font-size: 14px; font-weight: 550; color: var(--ink-2); }
+  .nav-links a { text-decoration: none; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links .pill-link { padding: 7px 14px; border-radius: 10px; background: var(--ink); color: var(--paper); }
+  .nav-links .pill-link:hover { color: var(--paper); opacity: .88; }
 
-  /* ---------- hero ---------- */
-  header.hero { padding: 96px 0 72px; text-align: center; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 14px; border-radius: 999px;
-    background: rgba(110,168,254,.12); border: 1px solid rgba(110,168,254,.3);
-    color: var(--accent); font-size: 13px; font-weight: 600;
-  }
-  h1 {
-    font-size: clamp(38px, 6vw, 64px);
-    line-height: 1.05; letter-spacing: -0.02em;
-    margin: 22px 0 18px; font-weight: 800;
-  }
-  h1 .grad {
-    background: linear-gradient(120deg, var(--accent), var(--accent-2));
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  .lead { max-width: 640px; margin: 0 auto 34px; color: var(--muted); font-size: 18px; }
+  /* --------------------------------------------------------------- hero */
+  .hero { position: relative; overflow: hidden; padding: 72px 0 96px; }
+  .hero::before { content: ""; position: absolute; right: -260px; top: -260px; width: 820px; height: 820px; border-radius: 50%; pointer-events: none;
+    background: repeating-radial-gradient(circle, transparent 0 9px, color-mix(in srgb, var(--ink) 5%, transparent) 9px 10px);
+    mask-image: radial-gradient(circle, #000 30%, transparent 68%); -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 68%); }
+  .hero-grid { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); gap: 56px; align-items: center; }
+  .hero h1 { font-size: clamp(40px, 4.4vw + 12px, 72px); font-weight: 800; letter-spacing: -.045em; line-height: .98; margin-bottom: 22px; }
+  .hero h1 span { color: var(--muted); }
+  .lead { max-width: 34em; margin: 0 0 32px; font-size: 18px; color: var(--ink-2); }
 
-  .downloads { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-  .btn {
-    display: inline-flex; align-items: center; gap: 10px;
-    padding: 14px 22px; border-radius: 12px; font-weight: 600; font-size: 15px;
-    border: 1px solid transparent; cursor: pointer; transition: transform .15s, box-shadow .15s, background .15s;
-    text-decoration: none;
-  }
-  .btn:hover { transform: translateY(-1px); text-decoration: none; }
-  .btn-primary {
-    background: linear-gradient(120deg, var(--accent), var(--accent-2));
-    color: #0b0d12; box-shadow: 0 8px 30px rgba(110,168,254,.35);
-  }
-  .btn-primary:hover { box-shadow: 0 12px 40px rgba(110,168,254,.45); }
-  .btn-ghost {
-    background: var(--bg-elev); border-color: var(--border); color: var(--text);
-  }
-  .btn-ghost:hover { background: var(--bg-elev2); }
-  .btn .os { font-size: 12px; opacity: .75; font-weight: 500; }
-  .btn svg { width: 18px; height: 18px; }
+  .downloads { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 12px; padding: 13px 20px 13px 18px; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 650; font-size: 15px; box-shadow: var(--shadow-1); transition: transform .15s var(--ease), background .15s, border-color .15s, box-shadow .15s; }
+  .btn:hover { transform: translateY(-2px); border-color: var(--ink-2); }
+  .btn:active { transform: translateY(0) scale(.98); }
+  .btn small { display: block; font: 500 11.5px var(--font-mono); color: var(--muted); margin-top: 1px; }
+  .btn svg { width: 20px; height: 20px; }
+  .btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; box-shadow: 0 10px 24px -10px var(--signal); }
+  .btn.primary:hover { background: var(--signal-hover); border-color: var(--signal-hover); }
+  .btn.primary small { color: rgba(255,255,255,.8); }
+  .release-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; font: 500 13px var(--font-mono); color: var(--muted); }
+  .release-meta a { color: var(--muted); }
+  .release-meta a:hover { color: var(--ink); }
+  .ver { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px; border-radius: 20px; background: var(--ok-soft); color: var(--ok); font-weight: 600; }
+  .ver::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
-  .meta { margin-top: 18px; font-size: 13px; color: var(--muted); }
-  .meta a { color: var(--muted); text-decoration: underline; }
+  /* -------------------------------------------- app window (CSS mock-up) */
+  .window { position: relative; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-3); overflow: hidden; font-size: 12px; transform: perspective(1600px) rotateY(-4deg) rotateX(2deg); transition: transform .6s var(--ease); }
+  .window:hover { transform: none; }
+  .titlebar { display: flex; align-items: center; gap: 7px; padding: 11px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .titlebar i { width: 11px; height: 11px; border-radius: 50%; background: var(--line-strong); }
+  .titlebar i:nth-child(1) { background: #ff5f57; } .titlebar i:nth-child(2) { background: #febc2e; } .titlebar i:nth-child(3) { background: #28c840; }
+  .titlebar span { margin-left: auto; margin-right: auto; font: 500 11px var(--font-mono); color: var(--muted); padding-right: 40px; }
+  .app { display: grid; grid-template-columns: 120px 1fr; min-height: 380px; }
+  .app-rail { padding: 14px 8px; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 55%, var(--paper)); display: flex; flex-direction: column; gap: 3px; }
+  .app-rail b { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; font-weight: 550; color: var(--ink-2); }
+  .app-rail b.on { background: var(--surface); box-shadow: var(--shadow-1); color: var(--ink); }
+  .app-rail b.on::before { background: var(--signal); }
+  .app-rail b::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: var(--line-strong); }
+  .app-main { padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .m-paste { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 9px; border: 1.5px solid var(--signal); background: var(--surface); box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 20%, transparent); font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; }
+  .m-paste .caret { width: 1.5px; height: 13px; background: var(--signal); animation: caret 1s steps(1) infinite; }
+  @keyframes caret { 50% { opacity: 0; } }
+  .m-paste .go { margin-left: auto; padding: 4px 9px; border-radius: 6px; background: var(--signal); color: #fff; font-family: var(--font-ui); font-weight: 650; font-size: 11px; }
+  .m-deck { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); }
+  .m-deck-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .m-deck-top b { font: 700 22px/1 var(--font-mono); letter-spacing: -.04em; }
+  .m-deck-top span { color: var(--muted); font-size: 11px; }
+  .m-bar { display: flex; gap: 2px; height: 7px; border-radius: 4px; overflow: hidden; background: var(--sunken); }
+  .m-bar i { display: block; }
+  .m-bar .d { background: var(--ok); width: 0; animation: fill-d 6s var(--ease) infinite; }
+  .m-bar .a { background: var(--run); width: 12%; }
+  .m-bar .f { background: var(--bad); width: 3%; }
+  @keyframes fill-d { 0% { width: 18%; } 70%, 100% { width: 64%; } }
+  .m-rows { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .m-row { display: grid; grid-template-columns: 1fr 96px 64px; gap: 8px; align-items: center; padding: 7px 10px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .m-row:last-child { border-bottom: 0; }
+  .m-row.dl { background: color-mix(in srgb, var(--run-soft) 55%, transparent); }
+  .m-row.fail { background: color-mix(in srgb, var(--bad-soft) 45%, transparent); }
+  .m-t { min-width: 0; }
+  .m-t b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-t span { color: var(--muted); font-size: 10.5px; }
+  .tag { justify-self: start; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; border-radius: 20px; font: 600 9.5px var(--font-mono); text-transform: uppercase; letter-spacing: .04em; }
+  .tag::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .tag.done { color: var(--ok); background: var(--ok-soft); } .tag.dl { color: var(--run); background: var(--run-soft); }
+  .tag.pend { color: var(--warn); background: var(--warn-soft); } .tag.fail { color: var(--bad); background: var(--bad-soft); }
+  .m-p { height: 4px; border-radius: 3px; background: var(--sunken); overflow: hidden; }
+  .m-p i { display: block; height: 100%; background: var(--ok); }
+  .m-row.dl .m-p i { background: var(--run); animation: prog 3s linear infinite; }
+  @keyframes prog { from { width: 8%; } to { width: 96%; } }
+  .m-meta { font: 10px var(--font-mono); color: var(--muted); }
 
-  /* ---------- features ---------- */
-  section { padding: 72px 0; }
-  section h2 { font-size: 28px; text-align: center; margin-bottom: 10px; }
-  section .sub { text-align: center; color: var(--muted); margin-bottom: 44px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-  .card {
-    background: var(--bg-elev); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 24px;
-    transition: border-color .2s, transform .2s;
-  }
-  .card:hover { border-color: rgba(110,168,254,.4); transform: translateY(-2px); }
-  .card .icon {
-    width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
-    background: rgba(110,168,254,.12); color: var(--accent); font-size: 20px; margin-bottom: 14px;
-  }
-  .card h3 { font-size: 16px; margin-bottom: 6px; }
-  .card p { color: var(--muted); font-size: 14px; margin: 0; }
+  /* ----------------------------------------------------------- sections */
+  section { padding: 96px 0; }
+  .section-head { max-width: 640px; margin-bottom: 48px; }
+  .section-head p { margin: 14px 0 0; font-size: 17px; color: var(--ink-2); }
 
-  /* ---------- steps ---------- */
-  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; counter-reset: step; }
-  .step {
-    position: relative; padding: 22px 22px 22px 62px;
-    background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius);
-  }
-  .step::before {
-    counter-increment: step; content: counter(step);
-    position: absolute; left: 18px; top: 18px;
-    width: 30px; height: 30px; border-radius: 8px;
-    background: linear-gradient(120deg, var(--accent), var(--accent-2));
-    color: #0b0d12; font-weight: 800; font-size: 14px;
-    display: grid; place-items: center;
-  }
-  .step h3 { font-size: 15px; margin-bottom: 4px; }
-  .step p { color: var(--muted); font-size: 13px; margin: 0; }
+  /* Bento: varied cell sizes instead of a uniform card grid. */
+  .bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .cell { position: relative; overflow: hidden; padding: 26px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow-1); transition: transform .25s var(--ease), border-color .25s; }
+  .cell:hover { transform: translateY(-3px); border-color: var(--line-strong); }
+  .cell h3 { font-size: 19px; font-weight: 700; letter-spacing: -.015em; margin: 14px 0 6px; }
+  .cell p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  .cell .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: var(--signal-soft); color: var(--signal); }
+  .c-a { grid-column: span 4; } .c-b { grid-column: span 2; } .c-c { grid-column: span 2; } .c-d { grid-column: span 2; } .c-e { grid-column: span 2; }
+  .c-a { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .c-a p { color: color-mix(in srgb, var(--paper) 72%, transparent); }
+  .c-a .ic { background: color-mix(in srgb, var(--paper) 12%, transparent); color: var(--signal); }
+  .formats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .formats span { padding: 6px 12px; border-radius: 9px; font: 600 13px var(--font-mono); border: 1px solid color-mix(in srgb, var(--paper) 22%, transparent); }
+  .formats span:first-child { background: var(--signal); border-color: var(--signal); color: #fff; }
+  .mini-compare { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 18px; border-radius: 10px; overflow: hidden; background: var(--line); border: 1px solid var(--line); }
+  .mini-compare div { background: var(--paper); padding: 10px 12px; font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .mini-compare b { display: block; font-size: 20px; letter-spacing: -.03em; color: var(--ink); text-transform: none; }
+  .mini-compare .miss b { color: var(--bad); } .mini-compare .ok b { color: var(--ok); }
 
-  /* ---------- cta ---------- */
-  .cta {
-    text-align: center; padding: 80px 0;
-    background: linear-gradient(180deg, transparent, rgba(110,168,254,.06));
-    border-top: 1px solid var(--border);
-  }
+  /* --------------------------------------------------------------- steps */
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 2px solid var(--ink); }
+  .steps li { padding: 26px 28px 8px 0; }
+  .steps li + li { padding-left: 28px; border-left: 1px solid var(--line); }
+  .steps .n { font: 700 52px/1 var(--font-mono); letter-spacing: -.05em; color: var(--signal); }
+  .steps h3 { font-size: 20px; font-weight: 700; margin: 16px 0 8px; letter-spacing: -.015em; }
+  .steps p { margin: 0; color: var(--ink-2); font-size: 15px; }
+  kbd { font: 600 12px var(--font-mono); padding: 1px 6px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface); }
+
+  /* -------------------------------------------------------------- privacy */
+  .privacy { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .privacy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+  .ledger { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--paper); }
+  .ledger div { display: grid; grid-template-columns: 22px 1fr; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--line); font-size: 15px; color: var(--ink-2); }
+  .ledger div:last-child { border-bottom: 0; }
+  .ledger b { color: var(--ink); }
+  .ledger svg { margin-top: 3px; }
+  .ledger .yes svg { color: var(--warn); } .ledger .no svg { color: var(--ok); }
+
+  /* --------------------------------------------------------- requirements */
+  .reqs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .req { padding: 22px 24px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+  .req .k { font: 600 11px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .req h3 { font-size: 18px; margin: 8px 0 6px; }
+  .req p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+
+  /* ----------------------------------------------------------------- cta */
+  .cta { position: relative; overflow: hidden; margin: 0 24px 24px; padding: 88px 24px; border-radius: 28px; background: var(--ink); color: var(--paper); text-align: center; }
+  .cta::before { content: ""; position: absolute; left: 50%; top: 100%; width: 900px; height: 900px; transform: translate(-50%, -50%); border-radius: 50%; pointer-events: none;
+    background: repeating-radial-gradient(circle, transparent 0 9px, color-mix(in srgb, var(--paper) 7%, transparent) 9px 10px);
+    mask-image: radial-gradient(circle, #000 25%, transparent 65%); -webkit-mask-image: radial-gradient(circle, #000 25%, transparent 65%); }
+  .cta > * { position: relative; }
   .cta h2 { margin-bottom: 12px; }
-  .cta p { color: var(--muted); margin-bottom: 28px; }
+  .cta p { margin: 0 auto 30px; max-width: 30em; color: color-mix(in srgb, var(--paper) 70%, transparent); }
+  .cta .downloads { justify-content: center; }
+  .cta .btn:not(.primary) { background: transparent; color: var(--paper); border-color: color-mix(in srgb, var(--paper) 30%, transparent); box-shadow: none; }
+  .cta .btn:not(.primary) small { color: color-mix(in srgb, var(--paper) 60%, transparent); }
+  .cta .btn:not(.primary):hover { border-color: var(--paper); }
 
-  /* ---------- footer ---------- */
-  footer {
-    border-top: 1px solid var(--border); padding: 32px 0; color: var(--muted); font-size: 13px;
+  footer { padding: 28px 0 40px; color: var(--muted); font-size: 13.5px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  footer nav { display: flex; gap: 18px; }
+  footer a { text-decoration: none; } footer a:hover { color: var(--ink); }
+
+  .btn.detected { outline: 2px solid var(--signal); outline-offset: 3px; }
+
+  /* ---------------------------------------------------------- responsive */
+  @media (max-width: 960px) {
+    .hero { padding: 48px 0 72px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 48px; }
+    .window { transform: none; }
+    .bento { grid-template-columns: 1fr 1fr; }
+    .c-a { grid-column: 1 / -1; } .c-b, .c-c, .c-d, .c-e { grid-column: span 1; }
+    .privacy-grid { grid-template-columns: 1fr; gap: 32px; }
+    .reqs { grid-template-columns: 1fr; }
   }
-  footer .wrap { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  footer a { color: var(--muted); }
-  footer a:hover { color: var(--text); }
-
   @media (max-width: 640px) {
-    .nav-links { display: none; }
-    header.hero { padding: 64px 0 48px; }
+    .nav-links a:not(.pill-link) { display: none; }
+    section { padding: 64px 0; }
+    .bento { grid-template-columns: 1fr; }
+    .c-b, .c-c, .c-d, .c-e { grid-column: auto; }
+    .steps { grid-template-columns: 1fr; }
+    .steps li + li { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+    .downloads .btn { flex: 1 1 100%; }
+    .app { grid-template-columns: 1fr; }
+    .app-rail { display: none; }
+    .m-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .m-paste .go { display: none; }
+    .m-row > :last-child { display: none; }
+    .cta { margin: 0 12px 12px; padding: 64px 20px; border-radius: 22px; }
   }
-
-  /* highlight detected OS */
-  .btn.detected { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
 </style>
 </head>
 <body>
 
-<nav>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></symbol>
+    <symbol id="i-compare" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4m4 4H7"/></symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></symbol>
+    <symbol id="i-update" viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></symbol>
+    <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+  </defs>
+</svg>
+
+<header class="nav" id="nav">
   <div class="wrap">
-    <a class="brand" href="#top">
-      <span class="logo">⬇</span>
-      <span>Playlist Downloader</span>
-    </a>
-    <div class="nav-links">
+    <a class="brand" href="#top"><span class="logo"><svg class="i"><use href="#i-download"/></svg></span>Playlist Downloader</a>
+    <nav class="nav-links" aria-label="Main navigation">
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
-      <a href="#download">Download</a>
+      <a href="#privacy">Privacy</a>
       <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader" target="_blank" rel="noopener">GitHub</a>
-    </div>
-  </div>
-</nav>
-
-<header class="hero" id="top">
-  <div class="wrap">
-    <span class="badge">⬇ Free &amp; open source</span>
-    <h1>Download whole playlists<br>as <span class="grad">MP3, M4A or MP4</span>.</h1>
-    <p class="lead">
-      Paste a YouTube, YouTube Music or Spotify playlist link and get every track
-      tagged, with cover art, in the folder you choose. Runs locally on your Mac or PC —
-      no cloud, no account required.
-    </p>
-    <div class="downloads" id="download">
-      <a class="btn btn-primary" id="btn-mac" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-macOS.zip">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
-        <span>Download for macOS<span class="os">Apple Silicon · zip</span></span>
-      </a>
-      <a class="btn btn-ghost" id="btn-win" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-Windows-x64.zip">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5l7.5-1v7H3v-6zm0 7h7.5v7l-7.5-1v-6zm8.5-8.2L21 3v8.5h-9.5v-7.2zm0 8.2H21V21l-9.5-1.3v-7.2z"/></svg>
-        <span>Download for Windows<span class="os">x64 · zip</span></span>
-      </a>
-    </div>
-    <p class="meta">
-      v1.5.0 ·
-      <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases">all releases</a> ·
-      <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader">source code</a>
-    </p>
+      <a class="pill-link" href="#get">Download</a>
+    </nav>
   </div>
 </header>
 
-<section id="features">
-  <div class="wrap">
-    <h2>Everything you need, nothing you don't</h2>
-    <p class="sub">A focused desktop app — fast, local, and respectful of your data.</p>
-    <div class="grid">
-      <div class="card">
-        <div class="icon">🎵</div>
-        <h3>Audio &amp; video</h3>
-        <p>MP3, M4A, Opus, FLAC or keep the original. Up to 4K video, with quality presets.</p>
+<main id="top">
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow">Free desktop app · macOS &amp; Windows</p>
+        <h1 id="hero-heading">Paste a playlist.<br><span>Get the files.</span></h1>
+        <p class="lead">
+          Drop in a YouTube, YouTube Music or Spotify link and get every track as a tagged
+          MP3, M4A, FLAC or MP4 — with cover art, in the folder you choose. Hundreds of songs,
+          one click.
+        </p>
+        <div class="downloads" id="get">
+          <a class="btn primary" id="btn-mac" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-macOS.zip">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+            <span>Download for macOS<small>Apple Silicon · .zip</small></span>
+          </a>
+          <a class="btn" id="btn-win" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-Windows-x64.zip">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3v-6zm0 7h7.5v7l-7.5-1v-6zm8.5-8.2L21 3v8.5h-9.5v-7.2zm0 8.2H21V21l-9.5-1.3v-7.2z"/></svg>
+            <span>Download for Windows<small>Windows 10/11 x64 · .zip</small></span>
+          </a>
+        </div>
+        <p class="release-meta">
+          <span class="ver" id="ver">v1.6.1</span>
+          <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases" id="notes-link">Release notes</a>
+          <span aria-hidden="true">·</span>
+          <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader">Source on GitHub</a>
+        </p>
       </div>
-      <div class="card">
-        <div class="icon">🏷️</div>
-        <h3>Tagged metadata</h3>
-        <p>Artist, title, album, cover art embedded automatically. Files renamed to "Artist - Title".</p>
-      </div>
-      <div class="card">
-        <div class="icon">⚡</div>
-        <h3>Fast &amp; parallel</h3>
-        <p>Concurrent downloads and fragment fetching. Resumes interrupted runs via an archive.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🔍</div>
-        <h3>Compare &amp; fill gaps</h3>
-        <p>Diff a local folder against a playlist and download only the missing tracks.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🔒</div>
-        <h3>Runs locally</h3>
-        <p>No account needed. Everything stays on your machine; nothing is uploaded.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🔄</div>
-        <h3>Auto-updates</h3>
-        <p>The menu bar / tray app checks GitHub Releases and updates itself in place.</p>
-      </div>
-    </div>
-  </div>
-</section>
 
-<section id="how">
-  <div class="wrap">
-    <h2>Three steps to your music</h2>
-    <p class="sub">No configuration, no Python, no command line.</p>
-    <div class="steps">
-      <div class="step">
-        <h3>Install</h3>
-        <p>Download the zip for your system, unzip, and run. The backend is bundled.</p>
-      </div>
-      <div class="step">
-        <h3>Paste a link</h3>
-        <p>Drop a YouTube, YouTube Music or Spotify playlist URL into the app.</p>
-      </div>
-      <div class="step">
-        <h3>Choose &amp; download</h3>
-        <p>Pick audio or video, quality and format. Hit download and watch progress.</p>
+      <!-- Illustrative mock-up of the app's Download screen. -->
+      <div class="window" role="img" aria-label="The Playlist Downloader app downloading a playlist: a paste box with a link, a progress bar at 64 percent, and a list of tracks marked done, downloading, pending and failed.">
+        <div class="titlebar"><i></i><i></i><i></i><span>Playlist Downloader</span></div>
+        <div class="app">
+          <div class="app-rail"><b class="on">Download</b><b>Compare</b><b>Settings</b><b>Activity</b></div>
+          <div class="app-main">
+            <div class="m-paste">music.youtube.com/playlist?list=PL…<span class="caret"></span><span class="go">Download now</span></div>
+            <div class="m-deck">
+              <div class="m-deck-top"><b>64%</b><span>Downloading 3 · 41 waiting</span></div>
+              <div class="m-bar"><i class="d"></i><i class="a"></i><i class="f"></i></div>
+            </div>
+            <div class="m-rows">
+              <div class="m-row"><div class="m-t"><b>Midnight City</b><span>M83</span></div><span class="tag done">done</span><div class="m-p"><i style="width:100%"></i></div></div>
+              <div class="m-row"><div class="m-t"><b>Dreams</b><span>Fleetwood Mac</span></div><span class="tag done">done</span><div class="m-p"><i style="width:100%"></i></div></div>
+              <div class="m-row dl"><div class="m-t"><b>Teardrop</b><span>Massive Attack</span></div><span class="tag dl">tagging</span><div class="m-p"><i></i></div></div>
+              <div class="m-row dl"><div class="m-t"><b>Electric Feel</b><span>MGMT</span></div><span class="tag dl">downloading</span><div class="m-p"><i style="animation-delay:-1.2s"></i></div></div>
+              <div class="m-row fail"><div class="m-t"><b>Archangel</b><span>Burial</span></div><span class="tag fail">retry 2/3</span><span class="m-meta">in 8s</span></div>
+              <div class="m-row"><div class="m-t"><b>Myth</b><span>Beach House</span></div><span class="tag pend">pending</span><span class="m-meta">4:18</span></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section id="requirements">
-  <div class="wrap">
-    <h2>Requirements</h2>
-    <p class="sub">Lightweight and self-contained.</p>
-    <div class="grid">
-      <div class="card">
-        <div class="icon">🍎</div>
-        <h3>macOS</h3>
-        <p>Apple Silicon (M1 or newer), macOS 11+. Intel Macs: build from source.</p>
+  <section id="features" aria-labelledby="features-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Features</p>
+        <h2 id="features-heading">Built for big playlists.</h2>
+        <p>A thousand-track playlist is a different job from one song. The app is designed for the long run: parallel, resumable, and honest about what failed.</p>
       </div>
-      <div class="card">
-        <div class="icon">🪟</div>
-        <h3>Windows</h3>
-        <p>Windows 10/11, 64-bit. No .NET or Python install required.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🎧</div>
-        <h3>FFmpeg</h3>
-        <p>Optional but recommended for converting to MP3/M4A. The app can fetch it for you.</p>
+      <div class="bento">
+        <article class="cell c-a">
+          <span class="ic"><svg class="i"><use href="#i-music"/></svg></span>
+          <h3>Any format you want</h3>
+          <p>Music at up to 320 kbps or lossless, or the full video up to 4K. Pick once in Settings; every download follows it.</p>
+          <div class="formats"><span>MP3</span><span>M4A</span><span>Opus</span><span>FLAC</span><span>WAV</span><span>MP4</span><span>MKV</span><span>WebM</span></div>
+        </article>
+        <article class="cell c-b">
+          <span class="ic"><svg class="i"><use href="#i-tag"/></svg></span>
+          <h3>Tagged &amp; named</h3>
+          <p>Artist, title and album written into every file, cover art embedded, files named “Artist - Title”.</p>
+        </article>
+        <article class="cell c-c">
+          <span class="ic"><svg class="i"><use href="#i-retry"/></svg></span>
+          <h3>Picks up where it left off</h3>
+          <p>Several downloads at once, automatic retries with backoff, and a saved queue. Close the app mid-run and carry on later.</p>
+        </article>
+        <article class="cell c-d">
+          <span class="ic"><svg class="i"><use href="#i-compare"/></svg></span>
+          <h3>Fill the gaps</h3>
+          <p>Compare a folder you already own against a playlist and queue only what's missing.</p>
+          <div class="mini-compare"><div><b>212</b>tracks</div><div class="ok"><b>187</b>matched</div><div class="miss"><b>25</b>missing</div></div>
+        </article>
+        <article class="cell c-e">
+          <span class="ic"><svg class="i"><use href="#i-update"/></svg></span>
+          <h3>Keeps itself current</h3>
+          <p>Lives in your menu bar or system tray, and installs new versions in place when you say so.</p>
+        </article>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<section class="cta" id="download-cta">
-  <div class="wrap">
-    <h2>Ready when you are</h2>
-    <p>Free, open source, and updated regularly.</p>
-    <div class="downloads">
-      <a class="btn btn-primary" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-macOS.zip">
-        Download for macOS
-      </a>
-      <a class="btn btn-ghost" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-Windows-x64.zip">
-        Download for Windows
-      </a>
+  <section id="how" aria-labelledby="how-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">How it works</p>
+        <h2 id="how-heading">Three steps. No command line.</h2>
+      </div>
+      <ol class="steps">
+        <li><span class="n">01</span><h3>Install</h3><p>Download the zip for your computer, unzip and open it. Everything it needs is inside; the first run offers to fetch FFmpeg for you.</p></li>
+        <li><span class="n">02</span><h3>Paste a link</h3><p>A playlist, album, single video or a text file of song names. Press <kbd>/</kbd> to jump to the paste box, or drag a link onto it.</p></li>
+        <li><span class="n">03</span><h3>Download now</h3><p>Choose Music or Video and press the button. Watch each track land, and retry anything that fails with one click.</p></li>
+      </ol>
     </div>
+  </section>
+
+  <section class="privacy" id="privacy" aria-labelledby="privacy-heading">
+    <div class="wrap privacy-grid">
+      <div class="section-head">
+        <p class="eyebrow">Privacy</p>
+        <h2 id="privacy-heading">What the app knows about you.</h2>
+        <p>You sign in once, with Google or an email address. That ties downloads to a person, so when something breaks the developer can see it and help. Here's exactly what that means.</p>
+      </div>
+      <div class="ledger">
+        <div class="yes"><svg class="i"><use href="#i-dot"/></svg><span><b>Recorded:</b> your email address, the playlist links you download, and any errors.</span></div>
+        <div class="no"><svg class="i"><use href="#i-check"/></svg><span><b>Stays on your computer:</b> the music and video files, your folders and your settings.</span></div>
+        <div class="no"><svg class="i"><use href="#i-check"/></svg><span><b>Downloads run locally.</b> Files come straight to your machine, never through a server of ours.</span></div>
+        <div class="no"><svg class="i"><use href="#i-check"/></svg><span><b>Nothing else is collected.</b> No ads, no tracking, no selling data.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="requirements" aria-labelledby="req-heading">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">Requirements</p>
+        <h2 id="req-heading">Small and self-contained.</h2>
+      </div>
+      <div class="reqs">
+        <div class="req"><span class="k">macOS</span><h3>Apple Silicon</h3><p>M1 or newer. Intel Macs can run it from source.</p></div>
+        <div class="req"><span class="k">Windows</span><h3>Windows 10 or 11</h3><p>64-bit. No Python or .NET install needed.</p></div>
+        <div class="req"><span class="k">FFmpeg</span><h3>Fetched for you</h3><p>Needed to convert audio. The app offers a one-click install on first run.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<section class="cta" aria-labelledby="cta-heading">
+  <p class="eyebrow">Free download</p>
+  <h2 id="cta-heading">Your next playlist is one paste away.</h2>
+  <p>Free to use and updated regularly.</p>
+  <div class="downloads">
+    <a class="btn primary" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-macOS.zip"><span>Download for macOS<small>Apple Silicon</small></span></a>
+    <a class="btn" href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases/latest/download/PlaylistDownloader-Windows-x64.zip"><span>Download for Windows<small>x64</small></span></a>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <div>© 2026 Playlist Downloader · MIT-style open source</div>
-    <div>
-      <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader">GitHub</a> ·
-      <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases">Releases</a> ·
+    <span>© 2026 Playlist Downloader</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader">GitHub</a>
+      <a href="https://github.com/brianbcyangmusic-pixel/playlist-downloader/releases">Releases</a>
       <a href="admin.html">Admin</a>
-    </div>
+    </nav>
   </div>
 </footer>
 
 <script>
-  // Highlight the download button for the visitor's OS.
   (function () {
+    // Highlight the download button for the visitor's OS.
     var ua = navigator.userAgent || "";
-    var isMac = /Mac/i.test(ua);
-    var isWin = /Win/i.test(ua);
     var mac = document.getElementById("btn-mac");
     var win = document.getElementById("btn-win");
-    if (isMac && mac) mac.classList.add("detected");
-    if (isWin && win) win.classList.add("detected");
+    if (/Mac/i.test(ua) && mac) mac.classList.add("detected");
+    if (/Win/i.test(ua) && win) win.classList.add("detected");
+
+    // Hairline under the nav once the page scrolls.
+    var nav = document.getElementById("nav");
+    var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    // Show the real latest version; the hard-coded label is the fallback.
+    fetch("https://api.github.com/repos/brianbcyangmusic-pixel/playlist-downloader/releases/latest")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rel) {
+        if (!rel || !rel.tag_name) return;
+        document.getElementById("ver").textContent = rel.tag_name;
+        if (rel.html_url) document.getElementById("notes-link").href = rel.html_url;
+      })
+      .catch(function () { /* offline or rate-limited: keep the fallback */ });
   })();
 </script>
 </body>
