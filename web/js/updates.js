@@ -62,6 +62,12 @@ function openUpdateDialog() {
     ? notes.map(n => `<li>${esc(n)}</li>`).join("")
     : `<li>See the full release notes for details.</li>`;
   $("#update-full").hidden = !u.html_url;
+  const manual = !u.supported;
+  $("#update-callout").textContent = manual
+    ? (u.unsupported_reason || "This copy cannot update itself.") + " You can also download the new version yourself."
+    : "The app closes and reopens by itself in a few seconds. Your queue, settings and " +
+      "downloaded files are kept; an active download resumes after the restart.";
+  $("#update-go").textContent = manual ? "Download from website" : "Update & restart";
   openModal("update-modal");
 }
 
@@ -91,9 +97,9 @@ async function reconnectAfterUpdate(fromVersion) {
 async function startUpdate() {
   const u = state.update || {};
   closeModal("update-modal");
-  if (!u.asset) {
+  if (!u.asset || !u.supported) {
     if (u.html_url) window.open(u.html_url, "_blank");
-    toast("Manual update", "Opening the download page for this version.", "warn");
+    toast("Download the new version", u.unsupported_reason || "Opening the download page.", "warn");
     return;
   }
   const hideOverlay = showUpdateOverlay();

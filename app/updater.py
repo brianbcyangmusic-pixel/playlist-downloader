@@ -178,6 +178,7 @@ def check(cfg, timeout: float = 15.0) -> dict[str, Any]:
         "html_url": release.get("html_url"),
         "published_at": release.get("published_at"),
         "supported": asset is not None and can_self_update(),
+        "unsupported_reason": None if asset is None else unsupported_reason(),
         "asset": None if asset is None else {
             "name": asset.get("name"),
             "url": asset.get("browser_download_url"),
@@ -288,9 +289,34 @@ def install_root() -> Path | None:
     return None
 
 
+def is_translocated(path: Path | None = None) -> bool:
+    """True when macOS runs the app from a randomised read-only copy.
+
+    Gatekeeper does this for a quarantined app opened where it was downloaded
+    (e.g. straight from ~/Downloads or the Desktop). Such a copy cannot be
+    replaced; moving the app into Applications ends the translocation.
+    """
+    target = path or current_app_bundle()
+    return target is not None and "/AppTranslocation/" in str(target)
+
+
+def unsupported_reason() -> str | None:
+    """Why this copy cannot update itself, in words for the person using it."""
+    root = install_root()
+    if root is None:
+        return "This copy cannot update itself. Download the new version from the website."
+    if is_translocated(root):
+        return ("macOS is running this copy from a temporary read-only location. "
+                "Move Playlist Downloader into your Applications folder and reopen it, "
+                "then updates install by themselves.")
+    if not os.access(root.parent, os.W_OK):
+        return f"This copy is in a folder it cannot write to ({root.parent})."
+    return None
+
+
 def can_self_update() -> bool:
     """Whether this copy of the app can replace itself in place."""
-    return install_root() is not None
+    return unsupported_reason() is None
 
 
 def clean_child_environment(env: dict[str, str] | None = None) -> dict[str, str]:
@@ -475,8 +501,9 @@ def install(asset_url: str, cfg, progress: Progress | None = None) -> dict[str, 
     the helper waits for it before touching any file.
     """
     root = install_root()
-    if root is None:
-        return {"ok": False, "error": "Self-update only works in the installed app."}
+    reason = unsupported_reason()
+    if root is None or reason:
+        return {"ok": False, "error": reason or "This copy cannot update itself."}
 
     log = paths.data_dir() / "update.log"
     log.parent.mkdir(parents=True, exist_ok=True)

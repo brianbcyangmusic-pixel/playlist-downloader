@@ -43,6 +43,8 @@ internal sealed class TrayApp : ApplicationContext
     private readonly NotifyIcon _tray;
     private readonly ContextMenuStrip _menu = new();
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(5) };
+    // A forced update check goes out to GitHub (the backend allows it 15 s).
+    private readonly HttpClient _slowHttp = new() { Timeout = TimeSpan.FromSeconds(20) };
     private readonly SynchronizationContext? _ui;
 
     private readonly ToolStripMenuItem _header = Row("Playlist Downloader", bold: true);
@@ -334,7 +336,7 @@ internal sealed class TrayApp : ApplicationContext
             if (DateTime.UtcNow - _lastUpdateCheck > TimeSpan.FromMinutes(5))
             {
                 _lastUpdateCheck = DateTime.UtcNow;
-                var update = await GetJsonAsync("/api/update/check");
+                var update = await GetJsonAsync("/api/update/check", _slowHttp);
                 if (update is not null) RenderUpdate(update.Value);
             }
         }
@@ -385,10 +387,20 @@ internal sealed class TrayApp : ApplicationContext
 
     private async Task CheckUpdatesAsync(bool force)
     {
-        var info = await GetJsonAsync("/api/update/check" + (force ? "?force=1" : ""));
+        if (!Ping(_port))
+        {
+            // The usual cause: the backend quit (e.g. after an update attempt)
+            // while the tray app kept running. Bring it back.
+            StartBackend();
+            MessageBox.Show("The app's background service had stopped. It is starting again now; " +
+                "choose \"Check for updates now\" again in a few seconds.",
+                "Playlist Downloader", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        var info = await GetJsonAsync("/api/update/check" + (force ? "?force=1" : ""), _slowHttp);
         if (info is null)
         {
-            MessageBox.Show("The backend did not answer the update check.",
+            MessageBox.Show("GitHub did not answer in time. Check your internet connection and try again.",
                 "Playlist Downloader", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
@@ -463,11 +475,11 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
-    private async Task<JsonElement?> GetJsonAsync(string path)
+    private async Task<JsonElement?> GetJsonAsync(string path, HttpClient? client = null)
     {
         try
         {
-            var text = await _http.GetStringAsync(BaseUrl + path);
+            var text = await (client ?? _http).GetStringAsync(BaseUrl + path);
             using var doc = JsonDocument.Parse(text);
             return doc.RootElement.Clone();
         }

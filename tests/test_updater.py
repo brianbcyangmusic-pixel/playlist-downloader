@@ -104,6 +104,19 @@ class UnpackTests(unittest.TestCase):
         self.assertTrue(os.access(tmp / "out" / "Playlist Downloader.app" / updater.MAC_LAUNCHER, os.X_OK))
 
 
+class UnsupportedReasonTests(unittest.TestCase):
+    def test_translocated_app_is_told_to_move_to_applications(self) -> None:
+        bundle = Path("/private/var/folders/x/T/AppTranslocation/ABC/d/Playlist Downloader.app")
+        with mock.patch.object(updater, "install_root", return_value=bundle):
+            self.assertIn("Applications", updater.unsupported_reason() or "")
+            self.assertFalse(updater.can_self_update())
+
+    def test_normal_install_can_update(self) -> None:
+        bundle = Path(tempfile.mkdtemp()) / "Playlist Downloader.app"
+        with mock.patch.object(updater, "install_root", return_value=bundle):
+            self.assertIsNone(updater.unsupported_reason())
+
+
 class InstallTests(unittest.TestCase):
     def test_source_checkout_refuses_to_self_update(self) -> None:
         with mock.patch.object(updater, "install_root", return_value=None):

@@ -10,6 +10,8 @@
 import Cocoa
 
 let PREFERRED_PORT = 8765
+/// A forced update check goes out to GitHub (the backend allows it 15 s).
+let UPDATE_CHECK_TIMEOUT: TimeInterval = 20
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
@@ -152,12 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.ownsServer && self.server === proc {
-                    self.server = nil
-                    self.ownsServer = false
-                    self.setStatusLine("Backend: stopped")
-                    self.openItem.isEnabled = false
-                    self.toggleItem.title = "Start backend"
-                    self.toggleItem.action = #selector(self.startBackend)
+                    self.markStopped()
                 }
             }
         }
@@ -177,6 +174,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggleItem.action = #selector(toggleBackend)
 
         waitUntilReady(attempts: 100)
+    }
+
+    /// Reset the menu after the backend went away (exited, or an attached one vanished).
+    private func markStopped(_ status: String = "Backend: stopped") {
+        server = nil
+        ownsServer = false
+        setStatusLine(status)
+        openItem.isEnabled = false
+        toggleItem.title = "Start backend"
+        toggleItem.action = #selector(startBackend)
     }
 
     private struct Launch {
@@ -327,12 +334,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refresh() {
         getJSON(path: "api/state") { [weak self] json in
-            guard let self, let json else { return }
+            guard let self else { return }
+            guard let json else {
+                if !self.starting && (self.server == nil || self.server?.isRunning == false) {
+                    self.markStopped("Backend: not running")
+                }
+                return
+            }
             self.appState = json
             self.render(from: json)
             if Date().timeIntervalSince(self.lastUpdateCheck) > 300 {
                 self.lastUpdateCheck = Date()
-                self.getJSON(path: "api/update/check") { info in
+                self.getJSON(path: "api/update/check", timeout: UPDATE_CHECK_TIMEOUT) { info in
                     guard let info else { return }
                     self.updateState = info
                     self.renderUpdates(info)
@@ -393,18 +406,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func checkUpdatesNow() {
+        guard ping(port: port) else {
+            // The usual cause: the backend quit (e.g. after an update attempt)
+            // while this menu bar app kept running. Bring it back.
+            markStopped("Backend: not running")
+            startBackend()
+            showAlert(title: "The app's background service had stopped",
+                      text: "It is starting again now. Choose “Check for updates now” again in a few seconds.")
+            return
+        }
         lastUpdateCheck = Date()
-        getJSON(path: "api/update/check?force=1") { [weak self] info in
+        getJSON(path: "api/update/check?force=1", timeout: UPDATE_CHECK_TIMEOUT) { [weak self] info in
             guard let self, let info else {
                 self?.showAlert(title: "Could not check for updates",
-                                text: "The backend did not answer the update check.")
+                                text: "GitHub did not answer in time. Check your internet connection and try again.")
                 return
             }
             self.updateState = info
             self.renderUpdates(info)
             if (info["available"] as? Bool) == true {
+                let reason = info["unsupported_reason"] as? String
                 self.showAlert(title: "Update available",
-                               text: "Version \(info["latest"] as? String ?? "?") is available. Open the web page and use Update & restart.")
+                               text: "Version \(info["latest"] as? String ?? "?") is available. " +
+                                     (reason ?? "Open the app page and use Update & restart."))
             } else if let current = info["current"] as? String {
                 self.showAlert(title: "You're up to date", text: "This build is v\(current).")
             }
@@ -474,13 +498,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return ok
     }
 
-    private func getJSON(path: String, completion: @escaping ([String: Any]?) -> Void) {
+    private func getJSON(path: String, timeout: TimeInterval = 4,
+                         completion: @escaping ([String: Any]?) -> Void) {
         guard let url = URL(string: "http://127.0.0.1:\(port)/\(path)") else {
             completion(nil)
             return
         }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 4
+        request.timeoutInterval = timeout
         URLSession.shared.dataTask(with: request) { data, _, _ in
             guard let data,
                   let object = try? JSONSerialization.jsonObject(with: data),
