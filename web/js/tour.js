@@ -2,10 +2,10 @@
  *
  * Highlights real UI elements in order (with tab switching and scrolling) and
  * explains what each one does. Runs automatically on first launch, and can be
- * replayed at any time with the "❓ How to use" button in the toolbar or by
+ * replayed at any time with the "Guide" button in the sidebar or by
  * calling window.startTour().
  *
- * Kept in its own IIFE so it never collides with app.js globals.
+ * Kept in its own IIFE so it never collides with the shared globals in js/.
  */
 (function () {
   "use strict";
@@ -15,125 +15,88 @@
   /* ------------------------------------------------------------------ steps */
   var STEPS = [
     {
-      title: "Welcome 👋",
+      title: "Welcome",
       body:
-        "This is a quick guided tour: from a playlist link to finished files. " +
-        "Use <b>Next</b> / <b>Back</b> to move around, or press <code>Esc</code> to leave at " +
-        "any time. You can replay it later with <b>How to use</b>."
+        "A quick tour: from a playlist link to finished files. " +
+        "Use <b>Next</b> / <b>Back</b> or the arrow keys, and <code>Esc</code> to leave at " +
+        "any time. Replay it later with <b>Guide</b> in the sidebar."
     },
     {
-      el: "#card-quick",
-      title: "Quick download",
+      el: "#drop-form",
+      title: "1 · Paste a link",
       body:
-        "In a hurry? Paste any link here and press <b>Download</b> — it imports and starts " +
-        "downloading in one step, using the folder and format you saved in <b>Settings</b>. " +
-        "Use the panel below when you want to pick and choose tracks first."
+        "A <b>YouTube</b>, <b>YouTube Music</b> or <b>Spotify</b> playlist, a single video, " +
+        "a path to a <b>text / CSV file</b> of songs, or a folder path. You can also drag a link " +
+        "straight onto this box. Press <kbd>/</kbd> from anywhere to jump here."
     },
     {
-      el: "#card-add",
-      title: "1 · Add a playlist",
+      el: ".hero-row",
+      title: "2 · Choose how",
       body:
-        "Paste a <b>YouTube</b> or <b>YouTube Music</b> playlist link, a <b>Spotify</b> playlist " +
-        "link, a path to a <b>text / CSV file</b> of songs, or a folder path. " +
-        "Leave <b>Source</b> on <i>Auto-detect</i> — the app works it out by itself."
+        "Pick <b>Music</b> for tagged audio with cover art, or <b>Video</b> for the full file. " +
+        "<b>Download now</b> imports and starts in one step. <b>Add to library</b> only reads the " +
+        "list, so you can review the tracks before downloading."
     },
     {
-      el: "#btn-import",
-      title: "2 · Import it",
+      el: "#run-deck",
+      title: "3 · Progress & controls",
       body:
-        "Pick <b>Download as → Music (audio)</b> for songs with tags and cover art, or " +
-        "<b>Video</b> for the full video file. Then press <b>Import playlist</b>. " +
-        "Importing only <i>reads</i> the list and resolves each track — nothing downloads yet."
+        "The bar shows everything at a glance: done, skipped, downloading and failed. " +
+        "<b>Start</b> asks where to save and remembers your choice; while running you get " +
+        "<b>Pause</b>, <b>Resume</b> and <b>Stop</b>. <b>Retry failed</b> re-queues anything that errored."
     },
     {
-      el: "#playlist-list",
-      title: "3 · Your playlists",
+      el: "#card-library",
+      title: "4 · Your library",
       body:
-        "Every playlist you import is saved here and stays between sessions. " +
-        "Click one to load its tracks into the queue on the right."
+        "Every playlist you import is kept here between sessions, with a ring showing how much " +
+        "of it is finished. Click one to load its tracks."
     },
     {
       el: "#card-queue",
-      title: "4 · The queue",
+      title: "5 · The queue",
       body:
-        "One row per track, with its status. Use the search box or the status dropdown to " +
-        "narrow a big list down, and the <b>⋯</b> button on a row to retry or remove just " +
-        "that track."
-    },
-    {
-      el: ".controls",
-      title: "5 · Start, pause, stop",
-      body:
-        "Press <b>▶ Start</b> to begin downloading — it first asks <b>where to save</b> and " +
-        "remembers your choice. While a run is going you also get <b>Pause</b>, " +
-        "<b>Resume</b> and <b>Stop</b>. <b>↻ Retry failed</b> re-queues everything that errored — " +
-        "handy after a dropped connection."
-    },
-    {
-      el: "#stats",
-      title: "6 · Progress at a glance",
-      body:
-        "Live counters: total, done, skipped, downloading, pending and failed. " +
-        "Close the window mid-download and the queue is saved — reopen it and press Start " +
-        "to carry on where it left off."
+        "One row per track. Filter by name, or by status with the chips. Hover a row to " +
+        "<b>retry</b>, <b>skip</b>, or <b>show the file</b> in its folder."
     },
     {
       tab: "compare",
       el: "#card-compare",
-      title: "7 · Already own some of these songs?",
+      title: "6 · Already own some of these?",
       body:
-        "The <b>Compare folder</b> tab checks a folder of music you already have against a " +
-        "playlist. It reports which tracks are <b>missing</b>, which already match, and which " +
-        "files are extra. Missing tracks can be pushed straight into the download queue."
-    },
-    {
-      tab: "settings",
-      el: "#card-music",
-      title: "8 · Format, quality & tags",
-      body:
-        "Choose the output format (<code>mp3</code>, <code>m4a</code>, <code>flac</code>…), the " +
-        "bitrate, and whether to write tags and embed cover art. The defaults already give you " +
-        "tagged files at 320&nbsp;kbps, so you can leave this alone."
+        "<b>Compare</b> checks a folder of music against a playlist and reports what's " +
+        "<b>missing</b>, what matches, and what's extra. Missing tracks can be queued in one click."
     },
     {
       tab: "settings",
       el: "#card-where",
-      title: "9 · Where your files go",
+      title: "7 · Where files go",
       body:
-        "Finished tracks land in this folder, and <b>Open folder</b> jumps straight to it in " +
-        "Finder. A playlist of many songs gets its own sub-folder named after the playlist; " +
-        "a single song or video is written under its own name."
+        "Finished tracks land in this folder. A playlist of many songs gets its own sub-folder " +
+        "named after the playlist."
     },
     {
       tab: "settings",
-      el: "#card-speed",
-      title: "10 · Big playlists (1,000+ songs)",
+      el: "#card-music",
+      title: "8 · Format & quality",
       body:
-        "3–4 parallel downloads is the sweet spot. For a very large playlist, turn on " +
-        "<b>Test mode</b> first: it resolves every track without downloading anything, so you " +
-        "can confirm the whole list is correct before committing."
-    },
-    {
-      tab: "settings",
-      el: "#btn-save",
-      title: "11 · Don't forget to save",
-      body:
-        "Changes on this tab only take effect after you press <b>Save settings</b>."
+        "The defaults give you tagged <code>mp3</code> files at 320&nbsp;kbps, so you can " +
+        "leave this alone. Changes show a <b>Save settings</b> bar at the bottom " +
+        "(<kbd>⌘S</kbd> works too)."
     },
     {
       tab: "log",
       el: "#card-log",
-      title: "12 · Something looks stuck?",
+      title: "9 · Something looks stuck?",
       body:
-        "The <b>Activity</b> tab shows a running log of what the app is doing. If a track " +
-        "keeps failing, check the troubleshooting notes in the README."
+        "<b>Activity</b> is a running log of what the app is doing. A red dot appears in the " +
+        "sidebar when something fails."
     },
     {
-      title: "You're all set 🎉",
+      title: "You're all set",
       body:
-        "That's the whole app: <b>add a playlist → review the queue → Start</b>. " +
-        "Use <b>❓ How to use</b> to replay this tour, and <b>⏻ Quit</b> (or <code>⌘Q</code>) " +
-        "to shut everything down cleanly."
+        "That's the whole app: <b>paste a link → Download now</b>. " +
+        "Use <b>Guide</b> to replay this tour, and <b>Quit</b> to shut everything down cleanly."
     }
   ];
 
@@ -201,10 +164,8 @@
 
   function render() {
     var step = STEPS[index];
-    if (step.tab) {
-      var tab = document.querySelector('.tab[data-tab="' + step.tab + '"]');
-      if (tab && !tab.classList.contains("active")) tab.click();
-    }
+    var tab = document.querySelector('.tab[data-tab="' + (step.tab || "download") + '"]');
+    if (tab && !tab.classList.contains("active")) tab.click();
     // let the panel become visible, then measure
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { paint(step); });

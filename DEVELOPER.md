@@ -12,19 +12,18 @@ needed, and how to build/update/deploy.
 | Path | Purpose |
 |---|---|
 | `app/` | Python backend (HTTP server, API, downloader, DB, cloud/telemetry, updater). |
-| `web/` | Static frontend for the desktop app (served by `app.server` from `web_dir()`). |
-| `docs/` | GitHub Pages site: owner dashboard (`index.html`) + `login.html` for Google handoff. |
+| `web/` | Static frontend for the desktop app (served by `app.server` from `web_dir()`). `index.html` + `styles.css`, with scripts in `web/js/` loaded in order (no build step). |
+| `docs/` | GitHub Pages site: public landing page (`index.html`), owner dashboard (`admin.html`) + `login.html` for Google handoff. |
 | `launcher/macos/` | macOS menu bar app source (`MenuBarApp.swift`) + `backend_entry.py`. |
 | `launcher/windows/` | Windows tray app source (.NET 8 WinForms) + `build.ps1`, `install.ps1`, `uninstall.ps1`, `README.txt`. |
 | `scripts/` | `build_backend.py` (PyInstaller), `build_macos_app.sh`. |
-| `Contents/`, `Info.plist`, `AppIcon.icns` | Legacy macOS bundle assets (kept for reference). |
+| `AppIcon.icns` | macOS app icon used by `build_macos_app.sh`. |
 | `cloud_config.json` | Firebase project config read by `app.cloud` (safe to ship; web API key is public). |
 | `firebase.json`, `.firebaserc`, `firestore.rules` | Firebase Hosting/Firestore rules. |
 | `requirements.txt` | Python deps for the app. |
 | `.github/workflows/build-apps.yml` | CI: builds macOS + Windows apps and publishes a release on tag push. |
 
-`app.bak/` is a backup copy checked into the repo (not imported). `app/__pycache__/`
-should not be committed — `.gitignore` ignores it and `.firebase/`.
+`app/__pycache__/` should not be committed — `.gitignore` ignores it and `.firebase/`.
 
 ## 2. Local development (source)
 

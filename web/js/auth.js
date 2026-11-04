@@ -1,10 +1,10 @@
 /* Sign-in gate.
  *
- * Runs before app.js. If this build has accounts configured, nothing else is
+ * Runs before the other scripts in js/. If this build has accounts configured, nothing else is
  * usable until someone signs in; otherwise it resolves immediately and the app
  * behaves exactly as it always has.
  *
- * Exposes `window.authReady` (a promise app.js awaits) and `window.Auth` for
+ * Exposes `window.authReady` (a promise main.js awaits) and `window.Auth` for
  * the account chip / sign-out.
  */
 (function () {

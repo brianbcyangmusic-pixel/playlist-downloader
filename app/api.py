@@ -176,6 +176,7 @@ def _run_import(ctx: AppContext, job_id: str, source: str, location: str,
 
         hub.emit("import_progress", {
             "job": job_id, "stage": "done",
+            "playlist_id": playlist_id,
             "message": f"Imported {total} tracks from “{name}”.",
             "count": total,
             "warning": warning,
